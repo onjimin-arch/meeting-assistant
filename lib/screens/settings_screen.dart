@@ -244,6 +244,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const SizedBox(height: 10),
                   Container(
+                    clipBehavior: Clip.hardEdge,
                     decoration: BoxDecoration(
                       color: const Color(0xFF2f2f2f),
                       borderRadius: BorderRadius.circular(12),
@@ -251,11 +252,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         color: const Color(0xFF3e3e3e),
                         width: 1,
                       ),
-                      overflow: Overflow.hidden,
                     ),
                     child: Column(
                       children: [
-                        _buildInfoRow('STT 모델', 'Whisper Tiny', 0),
+                        _buildInfoRow('STT 엔진', '플랫폼 내장 (Google/Apple)', 0),
                         _buildInfoRow('LLM 모델', 'Gemma 4 2B', 1),
                         _buildInfoRow('처리 방식', '온디바이스', 2),
                         _buildInfoRow(

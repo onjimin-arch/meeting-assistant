@@ -100,16 +100,18 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
                   children: [
                     for (int i = 0; i < _waveform.length; i++)
                       Expanded(
-                        child: Container(
-                          height: (_waveform[i] / 100) * 64,
-                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(2),
-                            color: i % 3 == 0
-                                ? const Color(0xFF10a37f)
-                                : const Color(0xFF8e8ea0),
-                          ),
+                        child: Opacity(
                           opacity: i % 3 == 0 ? 0.9 : 0.3,
+                          child: Container(
+                            height: (_waveform[i] / 100) * 64,
+                            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(2),
+                              color: i % 3 == 0
+                                  ? const Color(0xFF10a37f)
+                                  : const Color(0xFF8e8ea0),
+                            ),
+                          ),
                         ),
                       )
                   ],

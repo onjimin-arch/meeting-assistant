@@ -35,7 +35,8 @@ class NotionSyncService {
 
       // 임시 mock
       await Future.delayed(const Duration(seconds: 1));
-      const String pageId = 'mock_page_id_${DateTime.now().millisecondsSinceEpoch}';
+      final String pageId =
+          'mock_page_id_${DateTime.now().millisecondsSinceEpoch}';
 
       debugPrint('[Notion] 저장 완료: $pageId');
       return pageId;

@@ -184,9 +184,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
     }
 
-    // 기본: 홈 화면
-    return WillPopScope(
-      onWillPop: () async => false,
+    // 기본: 홈 화면 (시스템 뒤로가기로 앱 종료되지 않도록 차단)
+    return PopScope(
+      canPop: false,
       child: HomeScreen(
         onStartRecording: () => _startRecording(),
         onSelectMeeting: (meeting) {
