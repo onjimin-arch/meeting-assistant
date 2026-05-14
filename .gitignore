@@ -1,0 +1,38 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+.packages
+pubspec.lock
+*.lock.bak
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI에서 생성되는 네이티브 폴더 (저장소엔 푸시하지 않음 — 빌드 시 생성)
+android/
+ios/
+web/
+windows/
+linux/
+macos/
+
+# Local-only files
+*.apk
+*.aab
+*.ipa
+
+# Model cache (런타임 다운로드)
+assets/models/*
+!assets/models/.gitkeep

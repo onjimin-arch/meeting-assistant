@@ -1,0 +1,80 @@
+name: Build Android APK
+
+# 트리거: main 브랜치 푸시, PR, 또는 수동 실행
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:        # GitHub UI의 "Run workflow" 버튼
+
+jobs:
+  build-apk:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      # 이 저장소엔 android/ 폴더가 없으므로 CI에서 생성한다.
+      # --platforms=android 만 추가하면 lib/ 코드를 건드리지 않고
+      # 누락된 네이티브 폴더(android/, AndroidManifest 등)만 만든다.
+      - name: Generate Android platform folder
+        run: flutter create --platforms=android --org com.meetingassistant --project-name meeting_assistant .
+
+      - name: Patch AndroidManifest for STT + microphone
+        shell: bash
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+
+          if grep -q "RECORD_AUDIO" "$MANIFEST"; then
+            echo "AndroidManifest already patched, skipping"
+          else
+            # 권한 + Android 11+ <queries> 블록을 <application> 앞에 삽입.
+            # speech_to_text는 RecognitionService 인텐트를 해결할 수 있어야 하므로
+            # API 30+에서는 명시적 <queries>가 필수.
+            sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.BLUETOOTH"/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>\n\n    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" />\n        </intent>\n    </queries>\n\n    <application#' "$MANIFEST"
+          fi
+
+          echo "----- AndroidManifest.xml -----"
+          cat "$MANIFEST"
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze (non-fatal)
+        run: flutter analyze || true
+
+      - name: Build release APK (split per ABI)
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build universal release APK
+        run: flutter build apk --release
+
+      - name: List APK outputs
+        run: ls -lh build/app/outputs/flutter-apk/
+
+      - name: Upload APKs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meeting-assistant-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
