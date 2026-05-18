@@ -60,6 +60,36 @@ jobs:
           echo "----- AndroidManifest.xml -----"
           cat "$MANIFEST"
 
+      - name: Bump Android minSdkVersion to 24 (flutter_gemma requirement)
+        shell: bash
+        run: |
+          GRADLE="android/app/build.gradle"
+          GRADLE_KTS="android/app/build.gradle.kts"
+
+          if [ -f "$GRADLE_KTS" ]; then
+            FILE="$GRADLE_KTS"
+          else
+            FILE="$GRADLE"
+          fi
+
+          echo "----- Before patch: $FILE -----"
+          grep -E "minSdk" "$FILE" || echo "(no minSdk found)"
+
+          # flutter.minSdkVersion 또는 숫자값을 24로 강제
+          # Groovy(.gradle): minSdkVersion flutter.minSdkVersion
+          # Kotlin(.gradle.kts): minSdk = flutter.minSdkVersion
+          sed -i 's#minSdkVersion flutter.minSdkVersion#minSdkVersion 24#g' "$FILE" 2>/dev/null || true
+          sed -i 's#minSdk = flutter.minSdkVersion#minSdk = 24#g' "$FILE" 2>/dev/null || true
+          sed -i 's#minSdk flutter.minSdkVersion#minSdk 24#g' "$FILE" 2>/dev/null || true
+
+          # 이미 숫자로 박혀있는 경우도 24 미만이면 올림
+          sed -i -E 's#minSdkVersion ([0-9]+)#minSdkVersion 24#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#minSdk = ([0-9]+)#minSdk = 24#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#minSdk ([0-9]+)#minSdk 24#g' "$FILE" 2>/dev/null || true
+
+          echo "----- After patch: $FILE -----"
+          grep -E "minSdk" "$FILE" || echo "(no minSdk found)"
+
       - name: Get dependencies
         run: flutter pub get
 

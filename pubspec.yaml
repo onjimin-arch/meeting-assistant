@@ -18,6 +18,10 @@ dependencies:
   # v7+ 사용 — v1 embedding(Registrar) 제거됨, Flutter 3.29+ 호환
   speech_to_text: ^7.0.0
 
+  # LLM: 온디바이스 Gemma 추론 (MediaPipe LLM Inference 래퍼)
+  # 모델 파일(.task)을 별도 다운로드해서 사용
+  flutter_gemma: ^0.10.0
+
   # Notion API / 모델 다운로드
   http: ^1.2.1
 

@@ -59,6 +59,17 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Future<void> _startRecording() async {
+    // LLM 모델 준비 확인 — 없으면 다운로드 다이얼로그
+    final llm = ref.read(llmStateProvider);
+    if (llm.status != LlmReadiness.ready) {
+      final shouldDownload = await _showModelDownloadDialog();
+      if (!shouldDownload) return;
+      // 다운로드 시작 (백그라운드에서 진행, UI는 progress dialog)
+      await _showDownloadProgressDialog();
+      // 다운로드 후 ready가 아니면 중단
+      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+    }
+
     try {
       _recordingStartedAt = DateTime.now();
       await _sttService.startListening(localeId: 'ko_KR');
@@ -72,6 +83,108 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     }
   }
+
+  Future<bool> _showModelDownloadDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2f2f2f),
+        title: const Text(
+          '회의록 AI 모델 다운로드',
+          style: TextStyle(color: Color(0xFFececec)),
+        ),
+        content: const Text(
+          '회의록을 자동 생성하려면 AI 모델(약 530MB)을 한 번만 다운로드해야 합니다.\n\n'
+          'Wi-Fi 연결을 권장합니다. 다운로드 후엔 인터넷 없이도 동작합니다.',
+          style: TextStyle(color: Color(0xFFececec), fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('나중에'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              '다운로드',
+              style: TextStyle(
+                  color: Color(0xFF10a37f), fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _showDownloadProgressDialog() async {
+    // 다운로드 시작
+    ref.read(llmStateProvider.notifier).downloadAndLoad();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Consumer(
+        builder: (context, ref, _) {
+          final state = ref.watch(llmStateProvider);
+          // ready/error가 되면 자동으로 닫음
+          if (state.status == LlmReadiness.ready ||
+              state.status == LlmReadiness.error) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.canPop(dialogContext)) {
+                Navigator.pop(dialogContext);
+              }
+            });
+          }
+          return AlertDialog(
+            backgroundColor: const Color(0xFF2f2f2f),
+            title: Text(
+              state.status == LlmReadiness.loading
+                  ? '모델 로딩 중...'
+                  : '모델 다운로드 중',
+              style: const TextStyle(color: Color(0xFFececec)),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(
+                  value: state.status == LlmReadiness.loading
+                      ? null
+                      : state.downloadProgress,
+                  backgroundColor: const Color(0xFF1a1a1a),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFF10a37f)),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  state.status == LlmReadiness.loading
+                      ? '다운로드 완료. 모델을 메모리에 적재 중입니다.'
+                      : '${(state.downloadProgress * 100).toStringAsFixed(1)}%  '
+                          '(${_fmtMB(state.downloadedBytes)} / ${_fmtMB(state.totalBytes)})',
+                  style: const TextStyle(
+                      color: Color(0xFF8e8ea0), fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    // 다운로드 결과에 따라 사용자에게 알림
+    final finalState = ref.read(llmStateProvider);
+    if (finalState.status == LlmReadiness.error && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('모델 준비 실패: ${finalState.errorMessage ?? "알 수 없는 오류"}'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
+  String _fmtMB(int bytes) =>
+      '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
   Future<void> _stopRecordingAndProcess() async {
     try {

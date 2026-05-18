@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meeting.dart';
+import '../services/gemma_inference_service.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final Meeting meeting;
@@ -44,28 +45,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage(String text) {
+  Future<void> _sendMessage(String text) async {
     if (text.isEmpty) return;
 
     setState(() {
       _messages.add({'role': 'user', 'text': text});
       _isTyping = true;
     });
-
     _inputController.clear();
 
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) {
-        setState(() {
-          _isTyping = false;
-          _messages.add({
-            'role': 'assistant',
-            'text':
-                '"$text"에 대한 분석을 완료했습니다. 추가로 필요한 사항이 있으시면 말씀해 주세요.',
-          });
+    try {
+      final response = await GemmaInferenceService().processQuery(
+        query: text,
+        transcript: widget.meeting.transcript,
+        minutes: widget.meeting.minutes,
+      );
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _messages.add({'role': 'assistant', 'text': response});
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _messages.add({
+          'role': 'assistant',
+          'text': '응답 생성에 실패했습니다.\n(${e.toString()})',
         });
-      }
-    });
+      });
+    }
   }
 
   @override

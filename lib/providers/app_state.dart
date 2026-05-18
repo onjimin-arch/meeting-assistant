@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meeting.dart';
 import '../services/app_settings_service.dart';
+import '../services/gemma_inference_service.dart';
 import '../services/meeting_repository.dart';
+import '../utils/model_downloader.dart';
 
 /// 앱 설정 프로바이더
 final appSettingsProvider =
@@ -45,6 +47,122 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> updateMinutesInstructions(String instructions) async {
     final updated = state.copyWith(minutesInstructions: instructions);
     await updateSettings(updated);
+  }
+}
+
+/// LLM 모델 준비 상태
+enum LlmReadiness {
+  unknown,       // 아직 체크 안 함
+  needsDownload, // 캐시 없음 → 다운로드 필요
+  downloading,   // 다운로드 진행 중
+  loading,       // 다운로드 완료, InferenceModel 로딩 중
+  ready,         // 사용 가능
+  error,         // 에러 발생
+}
+
+class LlmState {
+  final LlmReadiness status;
+  final double downloadProgress; // 0.0 ~ 1.0
+  final int downloadedBytes;
+  final int totalBytes;
+  final String? errorMessage;
+
+  const LlmState({
+    this.status = LlmReadiness.unknown,
+    this.downloadProgress = 0,
+    this.downloadedBytes = 0,
+    this.totalBytes = 0,
+    this.errorMessage,
+  });
+
+  LlmState copyWith({
+    LlmReadiness? status,
+    double? downloadProgress,
+    int? downloadedBytes,
+    int? totalBytes,
+    String? errorMessage,
+  }) =>
+      LlmState(
+        status: status ?? this.status,
+        downloadProgress: downloadProgress ?? this.downloadProgress,
+        downloadedBytes: downloadedBytes ?? this.downloadedBytes,
+        totalBytes: totalBytes ?? this.totalBytes,
+        errorMessage: errorMessage,
+      );
+}
+
+final llmStateProvider =
+    StateNotifierProvider<LlmStateNotifier, LlmState>((ref) => LlmStateNotifier());
+
+class LlmStateNotifier extends StateNotifier<LlmState> {
+  final _downloader = ModelDownloader();
+  final _gemma = GemmaInferenceService();
+
+  LlmStateNotifier() : super(const LlmState()) {
+    _initialCheck();
+  }
+
+  Future<void> _initialCheck() async {
+    final cached = await _downloader.cachedPath(ModelDownloader.defaultModel);
+    if (cached == null) {
+      state = state.copyWith(status: LlmReadiness.needsDownload);
+    } else {
+      // 캐시는 있으니 로딩만
+      await loadModelFromCache();
+    }
+  }
+
+  /// 모델 다운로드 (사용자 동의 후 호출)
+  Future<void> downloadAndLoad() async {
+    state = state.copyWith(
+      status: LlmReadiness.downloading,
+      downloadProgress: 0,
+    );
+    try {
+      final file = await _downloader.download(
+        ModelDownloader.defaultModel,
+        onProgress: (p) {
+          state = state.copyWith(
+            status: LlmReadiness.downloading,
+            downloadProgress: p.percent,
+            downloadedBytes: p.receivedBytes,
+            totalBytes: p.totalBytes,
+          );
+        },
+      );
+      state = state.copyWith(status: LlmReadiness.loading);
+      await _gemma.ensureReady(file.path);
+      state = state.copyWith(status: LlmReadiness.ready);
+    } catch (e) {
+      state = state.copyWith(
+        status: LlmReadiness.error,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// 캐시된 모델 로드
+  Future<void> loadModelFromCache() async {
+    final cached = await _downloader.cachedPath(ModelDownloader.defaultModel);
+    if (cached == null) {
+      state = state.copyWith(status: LlmReadiness.needsDownload);
+      return;
+    }
+    state = state.copyWith(status: LlmReadiness.loading);
+    try {
+      await _gemma.ensureReady(cached);
+      state = state.copyWith(status: LlmReadiness.ready);
+    } catch (e) {
+      state = state.copyWith(
+        status: LlmReadiness.error,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  Future<void> deleteModel() async {
+    await _downloader.deleteCache(ModelDownloader.defaultModel);
+    state = const LlmState(status: LlmReadiness.needsDownload);
   }
 }
 

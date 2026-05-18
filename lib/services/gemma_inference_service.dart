@@ -1,86 +1,165 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_gemma/flutter_gemma.dart';
 
-/// LLM 추론 서비스 - Gemma 4 2B 사용
+/// 회의록 생성 + 후속 채팅 처리.
+///
+/// `flutter_gemma`를 통해 MediaPipe LLM Inference를 호출한다.
+/// 모델 파일(.task)은 [ModelDownloader]가 미리 다운로드해서 디스크에 두고,
+/// 이 서비스가 해당 경로를 setModelPath로 등록한 뒤 추론 모델을 만든다.
+///
+/// **모델이 준비되지 않은 상태에서 호출하면 명확한 예외를 던진다.**
+/// 호출자(앱 셸)는 먼저 [ensureReady]를 호출해 모델 가용성을 확인해야 함.
 class GemmaInferenceService {
-  /// 회의록 생성 및 제목 생성
+  static final GemmaInferenceService _instance =
+      GemmaInferenceService._internal();
+  factory GemmaInferenceService() => _instance;
+  GemmaInferenceService._internal();
+
+  InferenceModel? _model;
+  String? _loadedModelPath;
+
+  bool get isReady => _model != null;
+
+  /// 모델 파일 경로를 등록하고 InferenceModel을 생성한다.
+  /// 이미 같은 경로로 로드되어 있으면 no-op.
+  Future<void> ensureReady(String modelFilePath) async {
+    if (_model != null && _loadedModelPath == modelFilePath) return;
+
+    debugPrint('[Gemma] 모델 로드 시작: $modelFilePath');
+    final plugin = FlutterGemmaPlugin.instance;
+    await plugin.modelManager.setModelPath(modelFilePath);
+
+    // CPU 백엔드 사용 (대부분 폰에서 안정적).
+    // GPU는 일부 기기에서 OOM/크래시 발생 가능.
+    _model = await plugin.createModel(
+      modelType: ModelType.gemmaIt,
+      preferredBackend: PreferredBackend.cpu,
+      maxTokens: 2048,
+    );
+    _loadedModelPath = modelFilePath;
+    debugPrint('[Gemma] 모델 로드 완료');
+  }
+
+  /// 회의록 생성 — transcript를 받아 {title, minutes} 반환
   Future<Map<String, String>> generateMinutes({
     required String transcript,
     String? instructions,
   }) async {
+    if (_model == null) {
+      throw StateError(
+        '회의록 모델이 아직 준비되지 않았습니다. 설정에서 모델을 먼저 다운로드해 주세요.',
+      );
+    }
+
+    final prompt = _buildMinutesPrompt(transcript, instructions);
+    debugPrint('[Gemma] 회의록 생성 시작 (prompt ${prompt.length}자)');
+
     try {
-      debugPrint('[Gemma] 회의록 생성 시작');
+      final session = await _model!.createSession(
+        temperature: 0.3,
+        randomSeed: 1,
+        topK: 40,
+      );
+      await session.addQueryChunk(Message.text(text: prompt, isUser: true));
+      final response = await session.getResponse();
+      await session.close();
 
-      // 실제 구현: MediaPipe LLM Inference API 사용
-      // final result = await _invokeGemmaModel(transcript, instructions);
-
-      // 임시 mock 결과
-      await Future.delayed(const Duration(seconds: 3));
-
-      final mockResponse = {
-        'title': 'Q2 전략 방향 확정',
-        'minutes': '''## 회의록
-
-**일시**: 2025년 5월 13일 14:30
-**참석자**: 이지민, 김철수, 박영희, 최동욱
-**목적**: 2025 Q2 전략 방향 확정
-
-### 1. 주요 안건
-
-**AX 로드맵 업데이트**
-- DEBTFLOW v2 배포 일정: 6월 첫째 주 확정
-- HRFlow 설계 완료, HR팀 피드백 수렴 단계 진입
-- 멀티에이전트 프레임워크 Q2 내 파일럿 적용 예정
-
-**인력 계획**
-- AX팀 헤드카운트 2명 증원 검토 중
-- 외부 컨설팅 여부: 7월 이후 재논의
-
-### 2. 결정 사항
-
-- ☐ DEBTFLOW 배포: 이지민 담당, 6/2 마감
-- ☐ HR팀 미팅 일정: 김철수 조율, 5/20 이전
-- ☐ Q2 예산 재확인: 박영희 담당
-
-### 3. 다음 회의
-
-5월 20일 (화) 오전 10시'''
-      };
-
-      debugPrint('[Gemma] 회의록 생성 완료');
-      return mockResponse;
+      debugPrint('[Gemma] 회의록 생성 완료 (${response.length}자)');
+      return _parseMinutesResponse(response, transcript);
     } catch (e) {
       debugPrint('[Gemma] 회의록 생성 실패: $e');
       rethrow;
     }
   }
 
-  /// 채팅 기반 추가 작업 처리
+  /// 채팅 — 회의 맥락 기반으로 사용자 질의 응답
   Future<String> processQuery({
     required String query,
     required String transcript,
     required String minutes,
   }) async {
+    if (_model == null) {
+      throw StateError('회의록 모델이 아직 준비되지 않았습니다.');
+    }
+
+    final prompt = _buildChatPrompt(query, transcript, minutes);
+    debugPrint('[Gemma] 채팅 응답 생성 시작');
+
     try {
-      debugPrint('[Gemma] 쿼리 처리: $query');
-
-      // 임시 mock 응답
-      await Future.delayed(const Duration(seconds: 1));
-
-      final responses = {
-        '액션아이템 추출':
-            '이 회의에서 추출된 액션아이템은 총 3개입니다:\n\n1. **DEBTFLOW v2 배포** — 이지민 | 마감 6/2\n2. **HR팀 미팅 일정 조율** — 김철수 | 5/20 이전\n3. **Q2 예산 재확인** — 박영희 | 미정',
-        '영문 요약':
-            '**Meeting Summary (EN)**\n\nDate: May 13, 2025 | Duration: 45 min\n\n**Key Decisions**: DEBTFLOW v2 deployment set for early June. HRFlow entering feedback phase. Multi-agent framework pilot planned for Q2.\n\n**Action Items**: 3 items assigned across team leads.',
-        '임원 보고용 재작성':
-            '**[경영진 요약]** 2025 Q2 전략 회의\n\nAX 핵심 시스템 2종(DEBTFLOW·HRFlow)이 예정대로 진행 중이며 Q2 내 배포 및 피드백 수렴을 완료할 계획입니다. 인력 증원(2명) 검토는 7월 예산 확정 후 결정됩니다.',
-      };
-
-      return responses[query] ??
-          '"$query"에 대한 분석을 완료했습니다. 추가로 필요한 사항이 있으시면 말씀해 주세요.';
+      final session = await _model!.createSession(
+        temperature: 0.5,
+        randomSeed: DateTime.now().millisecondsSinceEpoch % 100000,
+        topK: 40,
+      );
+      await session.addQueryChunk(Message.text(text: prompt, isUser: true));
+      final response = await session.getResponse();
+      await session.close();
+      return response.trim();
     } catch (e) {
-      debugPrint('[Gemma] 쿼리 처리 실패: $e');
+      debugPrint('[Gemma] 채팅 실패: $e');
       rethrow;
     }
+  }
+
+  /// 회의록 작성 프롬프트 구성
+  String _buildMinutesPrompt(String transcript, String? instructions) {
+    final extra = (instructions == null || instructions.trim().isEmpty)
+        ? ''
+        : '\n\n[추가 작성 지침]\n$instructions\n';
+    return '''다음은 회의를 음성 인식으로 받아쓴 원본 텍스트입니다. 이 내용을 바탕으로 깔끔한 회의록을 작성해 주세요.
+
+[규칙]
+- 첫 줄에 회의 제목 1줄만 (예: "TITLE: 2025 Q2 전략 회의")
+- 두 번째 줄부터는 마크다운 회의록 본문
+- 본문에는 일시(추정), 참석자(언급된 사람), 주요 안건, 결정사항, 다음 액션 아이템(담당자/기한 포함)을 정리
+- 원본에 없는 사실은 절대 만들지 말 것. 모호하면 "(불명확)"으로 표기
+- 한국어로 작성$extra
+
+[원본 transcript]
+$transcript
+
+위 규칙대로 작성:''';
+  }
+
+  /// 채팅 프롬프트 구성
+  String _buildChatPrompt(String query, String transcript, String minutes) {
+    return '''당신은 회의 보조 AI입니다. 아래 회의 자료를 참고해 사용자의 요청에 답하세요.
+
+[회의 원본 transcript]
+$transcript
+
+[정리된 회의록]
+$minutes
+
+[사용자 요청]
+$query
+
+원본 회의 내용에 없는 사실은 만들지 말고, 회의 자료를 근거로 답변하세요.
+한국어로 답변:''';
+  }
+
+  /// 모델 응답에서 TITLE 라인과 본문 분리
+  Map<String, String> _parseMinutesResponse(
+      String response, String fallbackTranscript) {
+    final lines = response.trim().split('\n');
+    String title = '회의록';
+    String body = response.trim();
+
+    // 첫 줄에 "TITLE:" 패턴이 있으면 추출
+    if (lines.isNotEmpty) {
+      final first = lines.first.trim();
+      final match = RegExp(r'^(?:TITLE|제목)\s*[:：]\s*(.+)$').firstMatch(first);
+      if (match != null) {
+        title = match.group(1)!.trim();
+        body = lines.skip(1).join('\n').trim();
+      }
+    }
+
+    // 본문이 비어있으면 fallback
+    if (body.isEmpty) {
+      body = '회의록 생성에 실패했습니다.\n\n원본 transcript:\n$fallbackTranscript';
+    }
+
+    return {'title': title, 'minutes': body};
   }
 }

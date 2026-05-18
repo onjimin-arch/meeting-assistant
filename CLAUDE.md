@@ -57,12 +57,14 @@ description: 온디바이스 AI 회의 자동 기록 & Notion 저장 모바일 �
 - [x] ChatScreen: 추가 작업 요청 채팅
 - [x] SettingsScreen: Notion 설정 + 자동 저장 토글
 
-### 5단계: 네이티브 통합 (AI 파이프라인) 🔄
+### 5단계: 네이티브 통합 (AI 파이프라인) ✅
 - [x] STT: 플랫폼 내장 STT (speech_to_text) — 별도 모델/FFI 불필요
-- [ ] **ai-pipeline 서브에이전트 호출 필요** (이제 Gemma만 담당)
-  - MediaPipe LLM Inference API Android/iOS 네이티브 설정
-  - Gemma 2B 모델 다운로드 관리 (첫 실행 시)
-  - 추론 호출 프로토콜 정의
+- [x] LLM: `flutter_gemma` 패키지로 MediaPipe LLM Inference 호출
+- [x] 기본 모델: Gemma 3 1B Instruct int4 (~530MB)
+- [x] 첫 녹음 시 모델 다운로드 다이얼로그 + 진행률 표시
+- [x] CI에서 Android minSdkVersion 24+로 자동 패치
+- [x] llmStateProvider로 모델 상태 관리 (needsDownload/downloading/loading/ready/error)
+- ⚠️ 모델 URL은 HuggingFace 미러 가정 — 실패 시 사용자가 설정에서 덮어쓰기 가능하도록 후속 확장
 
 ### 6단계: Notion 연동 구현 🔄
 - [ ] **notion-integration 서브에이전트 호출 필요**
