@@ -58,7 +58,8 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF212121),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           Expanded(
             child: Column(
@@ -163,6 +164,7 @@ class _RecordingScreenState extends ConsumerState<RecordingScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

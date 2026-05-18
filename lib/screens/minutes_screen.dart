@@ -41,7 +41,8 @@ class _MinutesScreenState extends ConsumerState<MinutesScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF212121),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           // 헤더
           Container(
@@ -270,6 +271,7 @@ class _MinutesScreenState extends ConsumerState<MinutesScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

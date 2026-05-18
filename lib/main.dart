@@ -133,6 +133,9 @@ class _AppShellState extends ConsumerState<AppShell> {
         notionSaved: notionSaved,
       );
 
+      // 로컬 저장 (Notion 성공/실패와 무관하게 항상 저장됨)
+      await ref.read(meetingsProvider.notifier).add(meeting);
+
       // 상태 업데이트
       ref.read(currentMeetingProvider.notifier).state = meeting;
       ref.read(recordingStateProvider.notifier).state = RecordingState.completed;

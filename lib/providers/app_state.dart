@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meeting.dart';
 import '../services/app_settings_service.dart';
+import '../services/meeting_repository.dart';
 
 /// 앱 설정 프로바이더
 final appSettingsProvider =
@@ -44,6 +45,39 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> updateMinutesInstructions(String instructions) async {
     final updated = state.copyWith(minutesInstructions: instructions);
     await updateSettings(updated);
+  }
+}
+
+/// 저장된 회의 목록 프로바이더 (로컬 영속화)
+final meetingsProvider =
+    StateNotifierProvider<MeetingsNotifier, List<Meeting>>(
+  (ref) => MeetingsNotifier(),
+);
+
+class MeetingsNotifier extends StateNotifier<List<Meeting>> {
+  final _repo = MeetingRepository();
+
+  MeetingsNotifier() : super([]) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    state = await _repo.loadAll();
+  }
+
+  Future<void> add(Meeting meeting) async {
+    final updated = await _repo.append(meeting);
+    state = updated;
+  }
+
+  Future<void> remove(String id) async {
+    final updated = await _repo.remove(id);
+    state = updated;
+  }
+
+  Future<void> updateOne(Meeting meeting) async {
+    final updated = await _repo.update(meeting);
+    state = updated;
   }
 }
 

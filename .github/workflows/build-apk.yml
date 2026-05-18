@@ -1,5 +1,9 @@
 name: Build Android APK
 
+# Actions 목록에 표시될 실행 이름. commit 메시지와 무관하게 일관된 형식 사용.
+# 예: "APK Build #4 (main) — fix flutter compat"
+run-name: APK Build #${{ github.run_number }} (${{ github.ref_name }}) — ${{ github.event.head_commit.message || 'manual run' }}
+
 # 트리거: main 브랜치 푸시, PR, 또는 수동 실행
 on:
   push:

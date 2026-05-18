@@ -72,7 +72,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF212121),
-      body: Column(
+      body: SafeArea(
+        child: Column(
         children: [
           // 헤더
           Container(
@@ -335,6 +336,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           const SizedBox(height: 28),
         ],
+        ),
       ),
     );
   }

@@ -21,7 +21,8 @@ class ProcessingScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFF212121),
-      body: Center(
+      body: SafeArea(
+        child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -112,6 +113,7 @@ class ProcessingScreen extends ConsumerWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

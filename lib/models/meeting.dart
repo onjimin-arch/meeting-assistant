@@ -47,6 +47,34 @@ class Meeting {
     this.notionSaved = false,
   });
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'dateTime': dateTime.toIso8601String(),
+        'duration': duration,
+        'transcript': transcript,
+        'minutes': minutes,
+        'audioPath': audioPath,
+        'instructions': instructions,
+        'createdAt': createdAt.toIso8601String(),
+        'notionPageId': notionPageId,
+        'notionSaved': notionSaved,
+      };
+
+  factory Meeting.fromJson(Map<String, dynamic> json) => Meeting(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        dateTime: DateTime.parse(json['dateTime'] as String),
+        duration: json['duration'] as int,
+        transcript: json['transcript'] as String,
+        minutes: json['minutes'] as String,
+        audioPath: json['audioPath'] as String? ?? '',
+        instructions: json['instructions'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        notionPageId: json['notionPageId'] as String?,
+        notionSaved: json['notionSaved'] as bool? ?? false,
+      );
+
   Meeting copyWith({
     String? id,
     String? title,
