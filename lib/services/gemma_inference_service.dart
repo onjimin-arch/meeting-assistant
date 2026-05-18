@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+// ModelType, PreferredBackend enum은 main entry에서 export되지 않으므로 직접 import.
+import 'package:flutter_gemma/core/model.dart';
+import 'package:flutter_gemma/pigeon.g.dart';
 
 /// 회의록 생성 + 후속 채팅 처리.
 ///
