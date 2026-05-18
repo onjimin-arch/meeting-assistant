@@ -61,6 +61,8 @@ class PlatformSttService {
   }
 
   Future<void> _startSession() async {
+    // v7 호환: SpeechListenOptions의 일부 필드가 버전마다 다르므로
+    // 가장 기본 파라미터만 사용한다.
     await _stt.listen(
       onResult: _onResult,
       localeId: _localeId,
@@ -70,7 +72,6 @@ class PlatformSttService {
         listenMode: ListenMode.dictation,
         partialResults: true,
         cancelOnError: false,
-        autoPunctuation: true,
       ),
     );
   }

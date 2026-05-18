@@ -15,7 +15,8 @@ dependencies:
   flutter_riverpod: ^2.5.1
 
   # STT: 플랫폼 내장 음성 인식 (Android SpeechRecognizer / iOS SFSpeechRecognizer)
-  speech_to_text: ^6.6.2
+  # v7+ 사용 — v1 embedding(Registrar) 제거됨, Flutter 3.29+ 호환
+  speech_to_text: ^7.0.0
 
   # Notion API / 모델 다운로드
   http: ^1.2.1
