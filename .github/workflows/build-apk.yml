@@ -88,7 +88,7 @@ jobs:
           echo "----- After patch: $FILE -----"
           cat "$FILE"
 
-      - name: Bump Android minSdkVersion to 24 (flutter_gemma requirement)
+      - name: Bump Android minSdkVersion to 24 and compileSdk to 36
         shell: bash
         run: |
           GRADLE="android/app/build.gradle"
@@ -101,25 +101,70 @@ jobs:
           fi
 
           echo "----- Before patch: $FILE -----"
-          grep -E "minSdk" "$FILE" || echo "(no minSdk found)"
+          grep -E "(min|compile)Sdk" "$FILE" || echo "(no Sdk lines found)"
 
-          # flutter.minSdkVersion 또는 숫자값을 24로 강제
-          # Groovy(.gradle): minSdkVersion flutter.minSdkVersion
-          # Kotlin(.gradle.kts): minSdk = flutter.minSdkVersion
+          # minSdk: flutter_gemma 요구사항 24+
           sed -i 's#minSdkVersion flutter.minSdkVersion#minSdkVersion 24#g' "$FILE" 2>/dev/null || true
           sed -i 's#minSdk = flutter.minSdkVersion#minSdk = 24#g' "$FILE" 2>/dev/null || true
           sed -i 's#minSdk flutter.minSdkVersion#minSdk 24#g' "$FILE" 2>/dev/null || true
-
-          # 이미 숫자로 박혀있는 경우도 24 미만이면 올림
           sed -i -E 's#minSdkVersion ([0-9]+)#minSdkVersion 24#g' "$FILE" 2>/dev/null || true
           sed -i -E 's#minSdk = ([0-9]+)#minSdk = 24#g' "$FILE" 2>/dev/null || true
           sed -i -E 's#minSdk ([0-9]+)#minSdk 24#g' "$FILE" 2>/dev/null || true
 
-          echo "----- After patch: $FILE -----"
-          grep -E "minSdk" "$FILE" || echo "(no minSdk found)"
+          # compileSdk: background_downloader/androidx.core 1.17 요구사항 36+
+          sed -i 's#compileSdkVersion flutter.compileSdkVersion#compileSdkVersion 36#g' "$FILE" 2>/dev/null || true
+          sed -i 's#compileSdk = flutter.compileSdkVersion#compileSdk = 36#g' "$FILE" 2>/dev/null || true
+          sed -i 's#compileSdk flutter.compileSdkVersion#compileSdk 36#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#compileSdkVersion ([0-9]+)#compileSdkVersion 36#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#compileSdk = ([0-9]+)#compileSdk = 36#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#compileSdk ([0-9]+)#compileSdk 36#g' "$FILE" 2>/dev/null || true
 
-      - name: Get dependencies
-        run: flutter pub get
+          # targetSdk도 36으로 (호환성)
+          sed -i 's#targetSdkVersion flutter.targetSdkVersion#targetSdkVersion 36#g' "$FILE" 2>/dev/null || true
+          sed -i 's#targetSdk = flutter.targetSdkVersion#targetSdk = 36#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#targetSdkVersion ([0-9]+)#targetSdkVersion 36#g' "$FILE" 2>/dev/null || true
+          sed -i -E 's#targetSdk = ([0-9]+)#targetSdk = 36#g' "$FILE" 2>/dev/null || true
+
+          echo "----- After patch: $FILE -----"
+          grep -E "(min|compile|target)Sdk" "$FILE" || echo "(no Sdk lines found)"
+
+      - name: Patch pub-cache plugin compileSdk to 36
+        shell: bash
+        run: |
+          # flutter pub get은 다음 단계에서 실행되지만, 캐시는 이전 워크플로우 실행에서
+          # 남아있을 수 있다. 일단 미리 한 번 실행해 캐시를 채운 다음 패치.
+          flutter pub get
+
+          # pub-cache 위치 추적 (Ubuntu runner 기본: ~/.pub-cache/hosted)
+          CACHE_DIRS=(
+            "$HOME/.pub-cache/hosted"
+            "$HOME/.pub-cache/global_packages"
+            "/opt/hostedtoolcache/flutter/*/flutter/.pub-cache/hosted"
+          )
+
+          echo "----- Plugin build.gradle 파일 검색 -----"
+          for base in "${CACHE_DIRS[@]}"; do
+            find $base -path "*/android/build.gradle*" 2>/dev/null | while read f; do
+              echo "Patching: $f"
+              # compileSdk 강제 36
+              sed -i 's#compileSdkVersion flutter.compileSdkVersion#compileSdkVersion 36#g' "$f" 2>/dev/null || true
+              sed -i 's#compileSdk = flutter.compileSdkVersion#compileSdk = 36#g' "$f" 2>/dev/null || true
+              sed -i 's#compileSdk flutter.compileSdkVersion#compileSdk 36#g' "$f" 2>/dev/null || true
+              sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
+              sed -i -E 's#compileSdk[[:space:]]*=[[:space:]]*[0-9]+#compileSdk = 36#g' "$f" 2>/dev/null || true
+              sed -i -E 's#compileSdk[[:space:]]+[0-9]+#compileSdk 36#g' "$f" 2>/dev/null || true
+            done
+          done
+
+          echo "----- Verification: compileSdk lines in plugins -----"
+          for base in "${CACHE_DIRS[@]}"; do
+            find $base -path "*/android/build.gradle*" 2>/dev/null | while read f; do
+              echo "--- $f ---"
+              grep -E "compileSdk" "$f" || echo "(no compileSdk)"
+            done
+          done
+
+      # (의존성은 이전 "Patch pub-cache" 단계에서 이미 flutter pub get으로 받음)
 
       - name: Analyze (non-fatal)
         run: flutter analyze || true
