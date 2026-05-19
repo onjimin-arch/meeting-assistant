@@ -131,38 +131,51 @@ jobs:
       - name: Patch pub-cache plugin compileSdk to 36
         shell: bash
         run: |
-          # flutter pub get은 다음 단계에서 실행되지만, 캐시는 이전 워크플로우 실행에서
-          # 남아있을 수 있다. 일단 미리 한 번 실행해 캐시를 채운 다음 패치.
+          # GitHub Actions의 set -eo pipefail로 인해 빈 결과/실패가 전체 스크립트를
+          # 종료시키지 않도록 pipefail을 끄고, 디렉토리 존재를 명시적으로 검사한다.
+          set +o pipefail
+
+          # pub-cache 채우기
           flutter pub get
 
-          # pub-cache 위치 추적 (Ubuntu runner 기본: ~/.pub-cache/hosted)
-          CACHE_DIRS=(
-            "$HOME/.pub-cache/hosted"
-            "$HOME/.pub-cache/global_packages"
-            "/opt/hostedtoolcache/flutter/*/flutter/.pub-cache/hosted"
-          )
-
-          echo "----- Plugin build.gradle 파일 검색 -----"
-          for base in "${CACHE_DIRS[@]}"; do
-            find $base -path "*/android/build.gradle*" 2>/dev/null | while read f; do
-              echo "Patching: $f"
-              # compileSdk 강제 36
-              sed -i 's#compileSdkVersion flutter.compileSdkVersion#compileSdkVersion 36#g' "$f" 2>/dev/null || true
-              sed -i 's#compileSdk = flutter.compileSdkVersion#compileSdk = 36#g' "$f" 2>/dev/null || true
-              sed -i 's#compileSdk flutter.compileSdkVersion#compileSdk 36#g' "$f" 2>/dev/null || true
-              sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
-              sed -i -E 's#compileSdk[[:space:]]*=[[:space:]]*[0-9]+#compileSdk = 36#g' "$f" 2>/dev/null || true
-              sed -i -E 's#compileSdk[[:space:]]+[0-9]+#compileSdk 36#g' "$f" 2>/dev/null || true
-            done
+          # 패치 대상 디렉토리 (존재하는 것만 사용)
+          PATCH_PATHS=()
+          for candidate in "$HOME/.pub-cache/hosted" "$HOME/.pub-cache/global_packages"; do
+            [ -d "$candidate" ] && PATCH_PATHS+=("$candidate")
           done
 
-          echo "----- Verification: compileSdk lines in plugins -----"
-          for base in "${CACHE_DIRS[@]}"; do
-            find $base -path "*/android/build.gradle*" 2>/dev/null | while read f; do
-              echo "--- $f ---"
-              grep -E "compileSdk" "$f" || echo "(no compileSdk)"
-            done
+          echo "----- 패치 대상 디렉토리 -----"
+          printf ' - %s\n' "${PATCH_PATHS[@]}"
+
+          patch_one_file() {
+            local f="$1"
+            echo "Patching: $f"
+            sed -i 's#compileSdkVersion flutter.compileSdkVersion#compileSdkVersion 36#g' "$f" 2>/dev/null || true
+            sed -i 's#compileSdk = flutter.compileSdkVersion#compileSdk = 36#g' "$f" 2>/dev/null || true
+            sed -i 's#compileSdk flutter.compileSdkVersion#compileSdk 36#g' "$f" 2>/dev/null || true
+            sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
+            sed -i -E 's#compileSdk[[:space:]]*=[[:space:]]*[0-9]+#compileSdk = 36#g' "$f" 2>/dev/null || true
+            sed -i -E 's#compileSdk[[:space:]]+[0-9]+#compileSdk 36#g' "$f" 2>/dev/null || true
+          }
+
+          echo "----- 패치 진행 -----"
+          for base in "${PATCH_PATHS[@]}"; do
+            # process substitution(< <(...))으로 pipefail 영향 제거
+            while IFS= read -r f; do
+              [ -n "$f" ] && patch_one_file "$f"
+            done < <(find "$base" -path "*/android/build.gradle*" 2>/dev/null)
           done
+
+          echo "----- 검증: flutter_gemma의 compileSdk -----"
+          for base in "${PATCH_PATHS[@]}"; do
+            while IFS= read -r f; do
+              if [ -n "$f" ]; then
+                echo "--- $f ---"
+                grep -E "compileSdk" "$f" 2>/dev/null || echo "(no compileSdk line)"
+              fi
+            done < <(find "$base" -path "*flutter_gemma*/android/build.gradle*" 2>/dev/null)
+          done
+          echo "----- 검증 끝 -----"
 
       # (의존성은 이전 "Patch pub-cache" 단계에서 이미 flutter pub get으로 받음)
 
