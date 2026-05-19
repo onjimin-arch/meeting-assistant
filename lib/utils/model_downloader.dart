@@ -44,25 +44,25 @@ class ModelDownloader {
   /// 기본 모델: Gemma 3 1B Instruct, 4-bit quantized, ~530MB.
   /// MediaPipe LLM Inference의 .task 형식.
   ///
-  /// ※ 이 URL은 Google이 호스팅하는 공개 미러를 가정한 자리표시자입니다.
-  /// 실제 운영 시엔 다음 중 하나를 사용하세요:
-  ///  - Kaggle (인증 필요): https://www.kaggle.com/models/google/gemma-3
-  ///  - HuggingFace 미러 (공개): https://huggingface.co/litert-community
-  ///  - 자체 Google Cloud Storage 버킷
+  /// HuggingFace 원본(litert-community/Gemma3-1B-IT)은 Gemma 라이선스 동의가
+  /// 필요해 익명 GET이 HTTP 401로 막힌다. 그래서 한 번 PC에서 받아 둔 .task
+  /// 파일을 본 저장소의 GitHub Release에 재호스팅하고, 앱은 그 공개 URL을
+  /// 직접 받는다 (인증 불필요).
   static const ModelInfo gemma3_1B = ModelInfo(
     name: 'Gemma 3 1B (Instruct, int4)',
     filename: 'gemma3-1b-it-int4.task',
     url:
-        'https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task?download=true',
+        'https://github.com/onjimin-arch/-/releases/download/models-v1/gemma3-1b-it-int4.task',
     expectedBytes: 555 * 1024 * 1024, // ≈530MB
   );
 
   /// 큰 모델 옵션 (품질 우선): Gemma 2B int4, ~1.5GB
+  /// (필요 시 동일하게 GitHub Release에 업로드)
   static const ModelInfo gemma2_2B = ModelInfo(
     name: 'Gemma 2 2B (Instruct, int4)',
     filename: 'gemma2-2b-it-int4.task',
     url:
-        'https://huggingface.co/litert-community/Gemma2-2B-IT/resolve/main/gemma2-2b-it-cpu-int4.task?download=true',
+        'https://github.com/onjimin-arch/-/releases/download/models-v1/gemma2-2b-it-cpu-int4.task',
     expectedBytes: 1500 * 1024 * 1024,
   );
 
