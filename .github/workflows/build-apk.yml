@@ -60,6 +60,34 @@ jobs:
           echo "----- AndroidManifest.xml -----"
           cat "$MANIFEST"
 
+      - name: Disable R8 minification + resource shrinking (release build)
+        shell: bash
+        run: |
+          # flutter_gemma의 transitive 의존성(okhttp 등)이 optional 라이브러리들을
+          # 참조하기 때문에 R8이 "missing class" 에러를 뿜는다. release 빌드에서
+          # minify/shrink를 꺼서 우회한다. APK가 살짝 커지지만 동작엔 무관.
+          GRADLE_KTS="android/app/build.gradle.kts"
+          GRADLE_GROOVY="android/app/build.gradle"
+
+          if [ -f "$GRADLE_KTS" ]; then
+            FILE="$GRADLE_KTS"
+            if ! grep -q "isMinifyEnabled" "$FILE"; then
+              # release { 다음 줄에 minify/shrink 비활성화 삽입
+              sed -i '/^[[:space:]]*release[[:space:]]*{[[:space:]]*$/a\            isMinifyEnabled = false\n            isShrinkResources = false' "$FILE"
+            fi
+          elif [ -f "$GRADLE_GROOVY" ]; then
+            FILE="$GRADLE_GROOVY"
+            if ! grep -q "minifyEnabled" "$FILE"; then
+              sed -i '/^[[:space:]]*release[[:space:]]*{[[:space:]]*$/a\            minifyEnabled false\n            shrinkResources false' "$FILE"
+            fi
+          else
+            echo "::error::Neither build.gradle nor build.gradle.kts found"
+            exit 1
+          fi
+
+          echo "----- After patch: $FILE -----"
+          cat "$FILE"
+
       - name: Bump Android minSdkVersion to 24 (flutter_gemma requirement)
         shell: bash
         run: |
