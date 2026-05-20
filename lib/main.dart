@@ -59,16 +59,44 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Future<void> _startRecording() async {
-    // LLM 모델 준비 확인 — 없으면 다운로드 다이얼로그
+    // LLM 모델 준비 확인
     final llm = ref.read(llmStateProvider);
-    if (llm.status != LlmReadiness.ready) {
+    
+    if (llm.status == LlmReadiness.needsDownload) {
+      // 다운로드 필요 시 다이얼로그 표시
       final shouldDownload = await _showModelDownloadDialog();
       if (!shouldDownload) return;
-      // 다운로드 시작 (백그라운드에서 진행, UI는 progress dialog)
       await _showDownloadProgressDialog();
-      // 다운로드 후 ready가 아니면 중단
       if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+    } else if (llm.status == LlmReadiness.loading) {
+      // 로딩 중이면 완료될 때까지 대기 (다이얼로그 없이 또는 로딩 다이얼로그)
+      await _showLoadingProgressDialog();
+      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+    } else if (llm.status == LlmReadiness.error) {
+      // 에러 시 재시도 또는 다운로드 다이얼로그
+      final shouldRetry = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF2f2f2f),
+          title: const Text('모델 로드 실패', style: TextStyle(color: Color(0xFFececec))),
+          content: Text(
+            '모델 준비 중 오류가 발생했습니다.\n${llm.errorMessage ?? ""}\n\n다시 시도하시겠습니까?',
+            style: const TextStyle(color: Color(0xFFececec)),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('재시도')),
+          ],
+        ),
+      );
+      if (shouldRetry == true) {
+        await _showDownloadProgressDialog(); // 재시도 시 다운로드/로딩 프로세스 재실행
+        if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+      } else {
+        return;
+      }
     }
+    // ready 상태이면 바로 녹음 시작
 
     try {
       _recordingStartedAt = DateTime.now();
@@ -172,6 +200,53 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
 
     // 다운로드 결과에 따라 사용자에게 알림
+    final finalState = ref.read(llmStateProvider);
+    if (finalState.status == LlmReadiness.error && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('모델 준비 실패: ${finalState.errorMessage ?? "알 수 없는 오류"}'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
+  /// 모델 로딩 중 대기 다이얼로그 (캐시된 모델 로드 시)
+  Future<void> _showLoadingProgressDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => Consumer(
+        builder: (context, ref, _) {
+          final state = ref.watch(llmStateProvider);
+          if (state.status == LlmReadiness.ready ||
+              state.status == LlmReadiness.error) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.canPop(dialogContext)) {
+                Navigator.pop(dialogContext);
+              }
+            });
+          }
+          return AlertDialog(
+            backgroundColor: const Color(0xFF2f2f2f),
+            title: const Text('모델 로딩 중...', style: TextStyle(color: Color(0xFFececec))),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: Color(0xFF10a37f)),
+                const SizedBox(height: 12),
+                const Text(
+                  '캐시된 모델을 메모리에 적재 중입니다.\n잠시만 기다려 주세요.',
+                  style: TextStyle(color: Color(0xFF8e8ea0), fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
     final finalState = ref.read(llmStateProvider);
     if (finalState.status == LlmReadiness.error && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
