@@ -67,7 +67,7 @@ class PlatformSttService {
       onResult: _onResult,
       localeId: _localeId,
       listenFor: const Duration(seconds: 50),  // 60초 시스템 한도 직전에 끊고 재시작
-      pauseFor: const Duration(seconds: 10),   // 무음 10초까지 허용
+      pauseFor: const Duration(hours: 24),   // 무음 감지 시간 무제한 (실질적)
       listenOptions: SpeechListenOptions(
         listenMode: ListenMode.dictation,
         partialResults: true,

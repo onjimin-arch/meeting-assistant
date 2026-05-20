@@ -54,6 +54,13 @@ class GemmaInferenceService {
       );
     }
 
+    // 스크립트 글자수 검증 (너무 짧으면 회의록 생성 불가)
+    if (transcript.trim().length < 50) {
+      throw ArgumentError(
+        '스크립트 내용이 너무 짧아 회의록을 생성할 수 없습니다 (최소 50자 필요).',
+      );
+    }
+
     final prompt = _buildMinutesPrompt(transcript, instructions);
     debugPrint('[Gemma] 회의록 생성 시작 (prompt ${prompt.length}자)');
 
@@ -115,7 +122,8 @@ class GemmaInferenceService {
 - 첫 줄에 회의 제목 1줄만 (예: "TITLE: 2025 Q2 전략 회의")
 - 두 번째 줄부터는 마크다운 회의록 본문
 - 본문에는 일시(추정), 참석자(언급된 사람), 주요 안건, 결정사항, 다음 액션 아이템(담당자/기한 포함)을 정리
-- 원본에 없는 사실은 절대 만들지 말 것. 모호하면 "(불명확)"으로 표기
+- **절대 환각 금지**: 원본 크립트에 없는 내용, 사실, 이름, 날짜, 수치를 절대 만들지 말 것.
+- 모호한 부분은 "(불명확)"으로 표기하고, 추측하지 말 것.
 - 한국어로 작성$extra
 
 [원본 transcript]
