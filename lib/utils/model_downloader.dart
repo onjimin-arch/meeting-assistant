@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -24,12 +26,14 @@ class ModelInfo {
   final String filename;
   final String url;
   final int expectedBytes;
+  final String? sha256; // 다운로드 무결성 검증용 (선택)
 
   const ModelInfo({
     required this.name,
     required this.filename,
     required this.url,
     required this.expectedBytes,
+    this.sha256,
   });
 }
 
@@ -52,8 +56,9 @@ class ModelDownloader {
     name: 'Gemma 3 1B (Instruct, int4)',
     filename: 'gemma3-1b-it-int4.task',
     url:
-        'https://github.com/onjimin-arch/-/releases/download/models-v1/gemma3-1b-it-int4.task',
+        'https://github.com/onjimin-arch/meeting-assistant/releases/download/models-v1/gemma3-1b-it-int4.task',
     expectedBytes: 555 * 1024 * 1024, // ≈530MB
+    sha256: 'e3d981c01aeaaac69a84ffa0d4be13281b3176731063f1bea1c9fe6887bd9dee',
   );
 
   /// 큰 모델 옵션 (품질 우선): Gemma 2B int4, ~1.5GB
@@ -81,12 +86,28 @@ class ModelDownloader {
     return File(p.join(dir.path, info.filename));
   }
 
-  /// 캐시 여부 확인 (크기로 느슨하게 검증)
+  /// 캐시 여부 확인 (크기 + SHA-256 해시로 엄격하게 검증)
   Future<bool> isCached(ModelInfo info) async {
     final f = await localFile(info);
     if (!await f.exists()) return false;
     final size = await f.length();
-    return size >= (info.expectedBytes * 0.85).toInt();
+    if (size < (info.expectedBytes * 0.85).toInt()) return false;
+    // SHA-256 해시 검증 (설정된 경우)
+    if (info.sha256 != null) {
+      final actualHash = await _computeSha256(f);
+      if (actualHash != info.sha256) {
+        debugPrint('[ModelDownloader] 해시 불일치, 캐시 삭제: $filename');
+        await f.delete();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<String> _computeSha256(File file) async {
+    final stream = file.openRead();
+    final digest = await sha256.bind(stream).first;
+    return digest.toString();
   }
 
   /// 표준 모델 다운로드
@@ -159,6 +180,21 @@ class ModelDownloader {
     }
 
     debugPrint('[ModelDownloader] 다운로드 완료: ${file.path} ($received bytes)');
+
+    // SHA-256 무결성 검증
+    if (info.sha256 != null) {
+      final actualHash = await _computeSha256(file);
+      if (actualHash != info.sha256) {
+        await file.delete();
+        throw Exception(
+          '모델 무결성 검증 실패\n'
+          '기대: ${info.sha256}\n'
+          '실제: $actualHash',
+        );
+      }
+      debugPrint('[ModelDownloader] SHA-256 검증 통과');
+    }
+
     return file;
   }
 

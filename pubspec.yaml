@@ -24,6 +24,7 @@ dependencies:
 
   # Notion API / 모델 다운로드
   http: ^1.2.1
+  crypto: ^3.0.3
 
   # UI & 유틸
   intl: ^0.19.0
