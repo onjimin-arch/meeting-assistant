@@ -96,7 +96,7 @@ class ModelDownloader {
     if (info.sha256 != null) {
       final actualHash = await _computeSha256(f);
       if (actualHash != info.sha256) {
-        debugPrint('[ModelDownloader] 해시 불일치, 캐시 삭제: $filename');
+        debugPrint('[ModelDownloader] 해시 불일치, 캐시 삭제: ${info.filename}');
         await f.delete();
         return false;
       }
@@ -120,6 +120,7 @@ class ModelDownloader {
       filename: info.filename,
       modelName: info.name,
       expectedBytes: info.expectedBytes,
+      sha256: info.sha256,
       onProgress: onProgress,
     );
   }
@@ -130,6 +131,7 @@ class ModelDownloader {
     required String filename,
     required String modelName,
     int expectedBytes = 0,
+    String? sha256,
     void Function(DownloadProgress)? onProgress,
   }) async {
     final dir = await _modelDir();
@@ -182,13 +184,13 @@ class ModelDownloader {
     debugPrint('[ModelDownloader] 다운로드 완료: ${file.path} ($received bytes)');
 
     // SHA-256 무결성 검증
-    if (info.sha256 != null) {
+    if (sha256 != null) {
       final actualHash = await _computeSha256(file);
-      if (actualHash != info.sha256) {
+      if (actualHash != sha256) {
         await file.delete();
         throw Exception(
           '모델 무결성 검증 실패\n'
-          '기대: ${info.sha256}\n'
+          '기대: $sha256\n'
           '실제: $actualHash',
         );
       }
