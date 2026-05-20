@@ -107,13 +107,17 @@ class PlatformSttService {
   Future<String> stopListening() async {
     _wantsToListen = false;
     await _stt.stop();
-    final transcript =
-        ('$_finalizedTranscript $_currentPartial').trim();
+    
+    // 최종 transcript 조합 및 로깅
+    final combinedTranscript = ('$_finalizedTranscript $_currentPartial').trim();
+    debugPrint('[STT] stopListening - finalized: ${_finalizedTranscript.length}자, partial: ${_currentPartial.length}자, total: ${combinedTranscript.length}자');
+    
     _finalizedTranscript = '';
     _currentPartial = '';
-    return transcript.isEmpty
+    
+    return combinedTranscript.isEmpty
         ? '(음성이 감지되지 않았습니다)'
-        : transcript;
+        : combinedTranscript;
   }
 
   Future<void> cancel() async {

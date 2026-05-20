@@ -55,9 +55,17 @@ class GemmaInferenceService {
     }
 
     // 스크립트 글자수 검증 (너무 짧으면 회의록 생성 불가)
-    if (transcript.trim().length < 50) {
+    final trimmedTranscript = transcript.trim();
+    debugPrint('[Gemma] 전달받은 transcript 길이: ${trimmedTranscript.length}자');
+    
+    if (trimmedTranscript.length < 50) {
+      final preview = trimmedTranscript.length > 100 
+          ? trimmedTranscript.substring(0, 100) + '...' 
+          : trimmedTranscript;
       throw ArgumentError(
-        '스크립트 내용이 너무 짧아 회의록을 생성할 수 없습니다 (최소 50자 필요).',
+        '스크립트 내용이 너무 짧아 회의록을 생성할 수 없습니다.\n'
+        '현재: ${trimmedTranscript.length}자 (최소 50자 필요)\n'
+        '원본 내용: $preview',
       );
     }
 
