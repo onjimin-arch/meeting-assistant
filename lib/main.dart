@@ -201,20 +201,31 @@ class _AppShellState extends ConsumerState<AppShell> {
       ref.read(processingStepProvider.notifier).state = 0;
       await Future.delayed(const Duration(milliseconds: 300));
 
-      // Step 2: 회의록 생성
+      // Step 2: 회의록 생성 (실패해도 스크립트는 저장하기 위해 try-catch 분리)
       ref.read(processingStepProvider.notifier).state = 1;
-      final minutesResult = await _gemmaInference.generateMinutes(
-        transcript: transcript,
-        instructions: settings.minutesInstructions,
-      );
+      String title = '제목 없음';
+      String minutes = '';
+      bool minutesSuccess = false;
 
-      final title = minutesResult['title']!;
-      final minutes = minutesResult['minutes']!;
+      try {
+        final minutesResult = await _gemmaInference.generateMinutes(
+          transcript: transcript,
+          instructions: settings.minutesInstructions,
+        );
+        title = minutesResult['title']!;
+        minutes = minutesResult['minutes']!;
+        minutesSuccess = true;
+      } catch (e) {
+        debugPrint('회의록 생성 실: $e');
+        // 생성 실패 시에도 스크립트는 저장되도록 폴백 데이터 사용
+        title = '회의록 (생성 실패)';
+        minutes = '회의록 생성에 실패했습니다.\n\n원본 스크립트:\n$transcript';
+      }
 
-      // Step 3 (선택): Notion 저장
+      // Step 3 (선): Notion 저장
       String? notionPageId;
       bool notionSaved = false;
-      if (settings.autoSaveToNotion) {
+      if (settings.autoSaveToNotion && minutesSuccess) {
         ref.read(processingStepProvider.notifier).state = 2;
         final notionService = NotionSyncService(
           apiToken: settings.notionToken,
