@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../models/meeting.dart';
+import '../providers/app_state.dart';
+import '../services/notion_sync_service.dart';
 
 class MinutesScreen extends ConsumerStatefulWidget {
   final Meeting meeting;
@@ -23,15 +27,76 @@ class MinutesScreen extends ConsumerStatefulWidget {
 class _MinutesScreenState extends ConsumerState<MinutesScreen> {
   bool _showTranscript = false;
   bool _copied = false;
+  bool _savingToNotion = false;
 
-  void _copyTranscript() {
-    // TODO: 클립보드에 복사
+  void _copyTranscript() async {
+    await Clipboard.setData(ClipboardData(text: widget.meeting.transcript));
     setState(() {
       _copied = true;
     });
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _copied = false);
     });
+  }
+
+  Future<void> _saveToNotion() async {
+    final settings = ref.read(appSettingsProvider);
+    if (settings.notionToken == null || settings.notionPageUrl == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notion 설정이 필요합니다. 설정에서 토큰과 페이지 URL을 입력하세요.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _savingToNotion = true;
+    });
+
+    try {
+      final notionService = NotionSyncService(
+        apiToken: settings.notionToken,
+        pageUrl: settings.notionPageUrl,
+      );
+      final pageId = await notionService.saveMinutesToNotion(
+        title: widget.meeting.title,
+        minutes: widget.meeting.minutes,
+      );
+
+      if (!mounted) return;
+      // 회의 데이터 업데이트
+      final updatedMeeting = widget.meeting.copyWith(
+        notionPageId: pageId,
+        notionSaved: true,
+      );
+      await ref.read(meetingsProvider.notifier).updateOne(updatedMeeting);
+      ref.read(currentMeetingProvider.notifier).state = updatedMeeting;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notion에 저장되었습니다.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Notion 저장 실패: $e'),
+          duration: const Duration(seconds: 5),
+          backgroundColor: const Color(0xFF8B4513),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _savingToNotion = false;
+        });
+      }
+    }
   }
 
   @override
@@ -81,7 +146,7 @@ class _MinutesScreenState extends ConsumerState<MinutesScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '오늘 14:30 · ${durMins}분 ${durSecs}초',
+                        '${DateFormat('M월 d일 HH:mm').format(widget.meeting.dateTime)} · ${durMins}분 ${durSecs}초',
                         style: const TextStyle(
                           fontSize: 11,
                           color: Color(0xFF8e8ea0),
@@ -91,9 +156,11 @@ class _MinutesScreenState extends ConsumerState<MinutesScreen> {
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _savingToNotion ? null : _saveToNotion,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3a3a3a),
+                    backgroundColor: widget.meeting.notionSaved
+                        ? const Color(0xFF1a3a2e)
+                        : const Color(0xFF3a3a3a),
                     padding:
                         const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                     shape: RoundedRectangleBorder(
@@ -105,12 +172,28 @@ class _MinutesScreenState extends ConsumerState<MinutesScreen> {
                     ),
                   ),
                   child: Row(
-                    children: const [
-                      Icon(Icons.share, size: 13, color: Colors.white),
-                      SizedBox(width: 6),
+                    children: [
+                      if (_savingToNotion)
+                        const SizedBox(
+                          width: 13,
+                          height: 13,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF10a37f)),
+                          ),
+                        )
+                      else
+                        Icon(
+                          widget.meeting.notionSaved ? Icons.check : Icons.share,
+                          size: 13,
+                          color: widget.meeting.notionSaved
+                              ? const Color(0xFF10a37f)
+                              : Colors.white,
+                        ),
+                      const SizedBox(width: 6),
                       Text(
-                        'Notion 저장',
-                        style: TextStyle(
+                        widget.meeting.notionSaved ? '저장됨' : 'Notion 저장',
+                        style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFFececec),
                         ),

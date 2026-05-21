@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meeting.dart';
+import '../providers/app_state.dart';
 import '../services/gemma_inference_service.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -19,12 +20,6 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   late TextEditingController _inputController;
-  final List<Map<String, String>> _messages = [
-    {
-      'role': 'assistant',
-      'text': '안녕하세요! 이 회의 내용을 기반으로 추가 작업을 요청하거나 궁금한 내용을 질문해 보세요.',
-    },
-  ];
   bool _isTyping = false;
 
   final List<String> _quickOptions = [
@@ -48,8 +43,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendMessage(String text) async {
     if (text.isEmpty) return;
 
+    final userMessage = ChatMessage(
+      role: 'user',
+      text: text,
+      timestamp: DateTime.now(),
+    );
+    ref.read(chatMessagesProvider.notifier).addMessage(userMessage);
+
     setState(() {
-      _messages.add({'role': 'user', 'text': text});
       _isTyping = true;
     });
     _inputController.clear();
@@ -61,24 +62,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         minutes: widget.meeting.minutes,
       );
       if (!mounted) return;
-      setState(() {
-        _isTyping = false;
-        _messages.add({'role': 'assistant', 'text': response});
-      });
-    } catch (e) {
+      final assistantMessage = ChatMessage(
+        role: 'assistant',
+        text: response,
+        timestamp: DateTime.now(),
+      );
+      ref.read(chatMessagesProvider.notifier).addMessage(assistantMessage);
+    } catch (e, stackTrace) {
       if (!mounted) return;
-      setState(() {
-        _isTyping = false;
-        _messages.add({
-          'role': 'assistant',
-          'text': '응답 생성에 실패했습니다.\n(${e.toString()})',
+      debugPrint('[Chat] 응답 생성 실패: $e');
+      debugPrint('[Chat] 스택 트레이스: $stackTrace');
+      final errorMessage = ChatMessage(
+        role: 'assistant',
+        text: '응답 생성에 실패했습니다. 모델이 메모리 부족 등으로 응답하지 못할 수 있습니다.\n\n오류: ${e.toString()}',
+        timestamp: DateTime.now(),
+      );
+      ref.read(chatMessagesProvider.notifier).addMessage(errorMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
         });
-      });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final chatMessages = ref.watch(chatMessagesProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFF212121),
       body: SafeArea(
@@ -180,9 +192,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
+              itemCount: chatMessages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == _messages.length && _isTyping) {
+                if (index == chatMessages.length && _isTyping) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Row(
@@ -222,8 +234,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   );
                 }
 
-                final message = _messages[index];
-                final isUser = message['role'] == 'user';
+                final message = chatMessages[index];
+                final isUser = message.role == 'user';
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 20),
@@ -260,7 +272,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 )
                               : null,
                           child: Text(
-                            message['text']!,
+                            message.text,
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFFececec),

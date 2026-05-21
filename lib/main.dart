@@ -281,6 +281,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       String title = '제목 없음';
       String minutes = '';
       bool minutesSuccess = false;
+      String? gemmaError;
 
       try {
         final minutesResult = await _gemmaInference.generateMinutes(
@@ -291,7 +292,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         minutes = minutesResult['minutes']!;
         minutesSuccess = true;
       } catch (e) {
-        debugPrint('회의록 생성 실: $e');
+        debugPrint('회의록 생성 실패: $e');
+        gemmaError = e.toString();
         // 생성 실패 시에도 스크립트는 저장되도록 폴백 데이터 사용
         title = '회의록 (생성 실패)';
         minutes = '회의록 생성에 실패했습니다.\n\n원본 스크립트:\n$transcript';
@@ -339,17 +341,37 @@ class _AppShellState extends ConsumerState<AppShell> {
       ref.read(currentMeetingProvider.notifier).state = meeting;
       ref.read(recordingStateProvider.notifier).state = RecordingState.completed;
 
+      // Gemma 에러 시 사용자에게 알림
+      if (gemmaError != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('회의록 생성 중 오류가 발생했습니다. 원본 스크립트만 저장되었습니다.\n($gemmaError)'),
+            duration: const Duration(seconds: 8),
+            backgroundColor: const Color(0xFF8B4513),
+          ),
+        );
+      }
+
       // 1.2초 후 회의록 화면으로 이동
       await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) {
         ref.read(recordingStateProvider.notifier).state = RecordingState.idle;
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('처리 중 에러: $e');
+      debugPrint('스택 트레이스: $stackTrace');
       ref.read(recordingStateProvider.notifier).state = RecordingState.error;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('처리 중 오류 발생: $e')),
+          SnackBar(
+            content: Text('처리 중 오류가 발생했습니다: $e'),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: '닫기',
+              textColor: Colors.white,
+              onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+            ),
+          ),
         );
       }
     }

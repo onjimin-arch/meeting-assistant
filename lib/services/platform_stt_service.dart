@@ -61,13 +61,11 @@ class PlatformSttService {
   }
 
   Future<void> _startSession() async {
-    // v7 호환: SpeechListenOptions의 일부 필드가 버전마다 다르므로
-    // 가장 기본 파라미터만 사용한다.
     await _stt.listen(
       onResult: _onResult,
       localeId: _localeId,
-      listenFor: const Duration(seconds: 50),  // 60초 시스템 한도 직전에 끊고 재시작
-      pauseFor: const Duration(hours: 24),   // 무음 감지 시간 무제한 (실질적)
+      listenFor: const Duration(seconds: 55),
+      pauseFor: const Duration(seconds: 60),
       listenOptions: SpeechListenOptions(
         listenMode: ListenMode.dictation,
         partialResults: true,
@@ -79,22 +77,44 @@ class PlatformSttService {
   /// 세션이 자연 종료되었지만 사용자는 계속 녹음 중인 경우 → 새 세션 시작.
   Future<void> _restartSession() async {
     if (!_wantsToListen) return;
+    
+    debugPrint('[STT] Restarting session... finalized=${_finalizedTranscript.length}자, partial=${_currentPartial.length}자');
+    
     // partial을 finalize에 합쳐서 보존 (재시작하면 stt 내부 상태가 리셋됨)
     if (_currentPartial.isNotEmpty) {
-      _finalizedTranscript =
-          ('$_finalizedTranscript $_currentPartial').trim();
-      _currentPartial = '';
-      onAccumulated?.call(_finalizedTranscript);
+      final partial = _currentPartial.trim();
+      if (partial.isNotEmpty) {
+        if (_finalizedTranscript.isEmpty) {
+          _finalizedTranscript = partial;
+        } else {
+          _finalizedTranscript = '${_finalizedTranscript.trim()} $partial';
+        }
+        _currentPartial = '';
+        onAccumulated?.call(_finalizedTranscript);
+      }
     }
-    await Future.delayed(const Duration(milliseconds: 200));
+    
+    // 재시작 전 짧은 대기 (플랫폼 STT 상태 정리 시간)
+    await Future.delayed(const Duration(milliseconds: 500));
+    
     if (!_wantsToListen) return;
+    
+    debugPrint('[STT] Starting new session...');
     await _startSession();
   }
 
   void _onResult(SpeechRecognitionResult result) {
+    debugPrint('[STT] onResult: final=${result.finalResult}, words="${result.recognizedWords}"');
+    
     if (result.finalResult) {
-      _finalizedTranscript =
-          ('$_finalizedTranscript ${result.recognizedWords}').trim();
+      final words = result.recognizedWords.trim();
+      if (words.isNotEmpty) {
+        if (_finalizedTranscript.isEmpty) {
+          _finalizedTranscript = words;
+        } else {
+          _finalizedTranscript = '${_finalizedTranscript.trim()} $words';
+        }
+      }
       _currentPartial = '';
       onAccumulated?.call(_finalizedTranscript);
     } else {
@@ -109,7 +129,13 @@ class PlatformSttService {
     await _stt.stop();
     
     // 최종 transcript 조합 및 로깅
-    final combinedTranscript = ('$_finalizedTranscript $_currentPartial').trim();
+    final partial = _currentPartial.trim();
+    String combinedTranscript = _finalizedTranscript.trim();
+    if (partial.isNotEmpty) {
+      combinedTranscript = combinedTranscript.isEmpty
+          ? partial
+          : '$combinedTranscript $partial';
+    }
     debugPrint('[STT] stopListening - finalized: ${_finalizedTranscript.length}자, partial: ${_currentPartial.length}자, total: ${combinedTranscript.length}자');
     
     _finalizedTranscript = '';

@@ -215,14 +215,32 @@ final processingStepProvider = StateProvider<int>((ref) {
   return 0;
 });
 
-/// 채팅 메시지 목록 프로바이더
+/// 채팅 메시지 목록 프로바이더 (세션 유지)
 final chatMessagesProvider =
-    StateProvider<List<ChatMessage>>((ref) {
-  return [
+    StateNotifierProvider<ChatMessagesNotifier, List<ChatMessage>>(
+  (ref) => ChatMessagesNotifier(),
+);
+
+class ChatMessagesNotifier extends StateNotifier<List<ChatMessage>> {
+  ChatMessagesNotifier() : super([
     ChatMessage(
       role: 'assistant',
-      text: '안녕하세요! 이 회의 내용을 기반으로 추가 작업을 요청하거나 궁금한 내용을 질문해 보세요.',
+      text: '안녕하세요! 이 회의 내용을 기반으로 추가 작업을 요청하거나 궁금한 점을 질문해 보세요.',
       timestamp: DateTime.now(),
     ),
-  ];
-});
+  ]);
+
+  void addMessage(ChatMessage message) {
+    state = [...state, message];
+  }
+
+  void clearMessages() {
+    state = [
+      ChatMessage(
+        role: 'assistant',
+        text: '안녕하세요! 이 회의 내용을 기반으로 추가 작업을 요청하거나 궁금한 점을 질문해 보세요.',
+        timestamp: DateTime.now(),
+      ),
+    ];
+  }
+}

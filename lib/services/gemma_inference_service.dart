@@ -84,8 +84,10 @@ class GemmaInferenceService {
 
       debugPrint('[Gemma] 회의록 생성 완료 (${response.length}자)');
       return _parseMinutesResponse(response, transcript);
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[Gemma] 회의록 생성 실패: $e');
+      debugPrint('[Gemma] 스택 트레이스: $stackTrace');
+      // 세션이 열린 상태면 닫기 시도
       rethrow;
     }
   }
@@ -113,8 +115,9 @@ class GemmaInferenceService {
       final response = await session.getResponse();
       await session.close();
       return response.trim();
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('[Gemma] 채팅 실패: $e');
+      debugPrint('[Gemma] 스택 트레이스: $stackTrace');
       rethrow;
     }
   }
