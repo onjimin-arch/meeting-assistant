@@ -55,6 +55,11 @@ jobs:
           storeFile=meeting-assistant.jks
           EOF
 
+      - name: Accept Android SDK licenses & install NDK
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;30.0.14904198" > /dev/null 2>&1 || true
+
       - name: Patch pub-cache plugin compileSdk
         run: |
           set +o pipefail
