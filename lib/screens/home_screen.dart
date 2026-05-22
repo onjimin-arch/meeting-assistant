@@ -6,11 +6,13 @@ import 'package:intl/intl.dart';
 
 class HomeScreen extends ConsumerWidget {
   final VoidCallback onStartRecording;
+  final VoidCallback onTestMode;
   final Function(Meeting) onSelectMeeting;
   final VoidCallback onSettings;
 
   const HomeScreen({
     required this.onStartRecording,
+    required this.onTestMode,
     required this.onSelectMeeting,
     required this.onSettings,
     Key? key,
@@ -134,7 +136,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           // 녹음 버튼
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -151,6 +153,17 @@ class HomeScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
+              ),
+            ),
+          ),
+          // 테스트 버튼
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: TextButton(
+              onPressed: onTestMode,
+              child: const Text(
+                '더미 데이터로 테스트',
+                style: TextStyle(fontSize: 12, color: Color(0xFF8e8ea0)),
               ),
             ),
           ),

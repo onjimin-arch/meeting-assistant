@@ -262,21 +262,52 @@ class _AppShellState extends ConsumerState<AppShell> {
       '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
   Future<void> _stopRecordingAndProcess() async {
-    try {
-      // 녹음 중단 → 플랫폼 STT가 누적한 텍스트 회수
-      final transcript = await _sttService.stopListening();
-      final duration =
-          DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
+    final transcript = await _sttService.stopListening();
+    final duration = DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
+    await _processTranscript(transcript, duration.inSeconds);
+  }
 
-      // 처리 화면 진입
+  static const _dummyTranscript =
+      '안녕하세요 오늘 2분기 마케팅 전략 회의 시작하겠습니다. '
+      '먼저 1분기 성과를 보면 앱 다운로드 수가 전분기 대비 23% 증가했고 MAU는 15만 명을 달성했습니다. '
+      '다만 리텐션 지표가 D7 기준 28%로 목표치인 35%에 미치지 못했습니다. '
+      '이에 따라 2분기에는 온보딩 플로우 개선과 푸시 알림 개인화에 집중하기로 했습니다. '
+      '예산은 전분기와 동일한 3천만원이며 퍼포먼스 마케팅 40%, 콘텐츠 마케팅 35%, 이벤트 25%로 배분합니다. '
+      '다음 달 15일까지 각 팀에서 세부 실행 계획서를 제출해 주시기 바랍니다. '
+      '이상으로 회의를 마치겠습니다.';
+
+  Future<void> _startTestMode() async {
+    debugPrint('[TEST] _startTestMode called');
+    var llm = ref.read(llmStateProvider);
+    // unknown 상태(초기 체크 중)이면 완료될 때까지 폴링
+    if (llm.status == LlmReadiness.unknown) {
+      for (int i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        llm = ref.read(llmStateProvider);
+        if (llm.status != LlmReadiness.unknown) break;
+      }
+    }
+    debugPrint('[TEST] LLM status: ${llm.status}');
+    if (llm.status == LlmReadiness.needsDownload) {
+      final shouldDownload = await _showModelDownloadDialog();
+      if (!shouldDownload) return;
+      await _showDownloadProgressDialog();
+      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+    } else if (llm.status == LlmReadiness.loading) {
+      await _showLoadingProgressDialog();
+      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+    }
+    await _processTranscript(_dummyTranscript, 312);
+  }
+
+  Future<void> _processTranscript(String transcript, int durationSeconds) async {
+    try {
       ref.read(recordingStateProvider.notifier).state = RecordingState.processing;
       final settings = ref.read(appSettingsProvider);
 
-      // Step 1: STT는 녹음 중 실시간으로 완료됨 → 바로 표시만
       ref.read(processingStepProvider.notifier).state = 0;
       await Future.delayed(const Duration(milliseconds: 300));
 
-      // Step 2: 회의록 생성 (실패해도 스크립트는 저장하기 위해 try-catch 분리)
       ref.read(processingStepProvider.notifier).state = 1;
       String title = '제목 없음';
       String minutes = '';
@@ -294,12 +325,10 @@ class _AppShellState extends ConsumerState<AppShell> {
       } catch (e) {
         debugPrint('회의록 생성 실패: $e');
         gemmaError = e.toString();
-        // 생성 실패 시에도 스크립트는 저장되도록 폴백 데이터 사용
         title = '회의록 (생성 실패)';
         minutes = '회의록 생성에 실패했습니다.\n\n원본 스크립트:\n$transcript';
       }
 
-      // Step 3 (선): Notion 저장
       String? notionPageId;
       bool notionSaved = false;
       if (settings.autoSaveToNotion && minutesSuccess) {
@@ -312,6 +341,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           notionPageId = await notionService.saveMinutesToNotion(
             title: title,
             minutes: minutes,
+            dateTime: DateTime.now(),
           );
           notionSaved = true;
         } catch (e) {
@@ -319,29 +349,24 @@ class _AppShellState extends ConsumerState<AppShell> {
         }
       }
 
-      // 회의 데이터 생성 및 저장
       final meeting = Meeting(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         title: title,
         dateTime: DateTime.now(),
-        duration: duration.inSeconds,
+        duration: durationSeconds,
         transcript: transcript,
         minutes: minutes,
-        audioPath: '', // 플랫폼 STT 사용 시 오디오 파일 미저장 (재생 기능은 후속 단계)
+        audioPath: '',
         instructions: settings.minutesInstructions,
         createdAt: DateTime.now(),
         notionPageId: notionPageId,
         notionSaved: notionSaved,
       );
 
-      // 로컬 저장 (Notion 성공/실패와 무관하게 항상 저장됨)
       await ref.read(meetingsProvider.notifier).add(meeting);
-
-      // 상태 업데이트
       ref.read(currentMeetingProvider.notifier).state = meeting;
       ref.read(recordingStateProvider.notifier).state = RecordingState.completed;
 
-      // Gemma 에러 시 사용자에게 알림
       if (gemmaError != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -350,12 +375,6 @@ class _AppShellState extends ConsumerState<AppShell> {
             backgroundColor: const Color(0xFF8B4513),
           ),
         );
-      }
-
-      // 1.2초 후 회의록 화면으로 이동
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (mounted) {
-        ref.read(recordingStateProvider.notifier).state = RecordingState.idle;
       }
     } catch (e, stackTrace) {
       debugPrint('처리 중 에러: $e');
@@ -413,7 +432,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       canPop: false,
       child: HomeScreen(
         onStartRecording: () => _startRecording(),
+        onTestMode: () => _startTestMode(),
         onSelectMeeting: (meeting) {
+          debugPrint('[NAV] onSelectMeeting: ${meeting.title}');
           ref.read(currentMeetingProvider.notifier).state = meeting;
           ref.read(recordingStateProvider.notifier).state =
               RecordingState.completed;

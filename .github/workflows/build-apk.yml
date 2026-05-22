@@ -1,200 +1,51 @@
-name: Build Android APK
+name: Build Android APK (CI)
 
-# Actions 목록에 표시될 실행 이름. commit 메시지와 무관하게 일관된 형식 사용.
-# 예: "APK Build #4 (main) — fix flutter compat"
-run-name: APK Build #${{ github.run_number }} (${{ github.ref_name }}) — ${{ github.event.head_commit.message || 'manual run' }}
+run-name: "CI #${{ github.run_number }} (${{ github.ref_name }}) — ${{ github.event.head_commit.message || 'manual' }}"
 
-# 트리거: main 브랜치 푸시, PR, 또는 수동 실행
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  workflow_dispatch:        # GitHub UI의 "Run workflow" 버튼
+  workflow_dispatch:
 
 jobs:
-  build-apk:
-    name: Build Release APK
+  build:
+    name: Build Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Show Flutter version
-        run: flutter --version
-
-      # 이 저장소엔 android/ 폴더가 없으므로 CI에서 생성한다.
-      # --platforms=android 만 추가하면 lib/ 코드를 건드리지 않고
-      # 누락된 네이티브 폴더(android/, AndroidManifest 등)만 만든다.
-      - name: Generate Android platform folder
-        run: flutter create --platforms=android --org com.meetingassistant --project-name meeting_assistant .
-
-      - name: Patch AndroidManifest for STT + microphone
-        shell: bash
+      - name: Patch pub-cache plugin compileSdk
         run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-
-          if grep -q "RECORD_AUDIO" "$MANIFEST"; then
-            echo "AndroidManifest already patched, skipping"
-          else
-            # 권한 + Android 11+ <queries> 블록을 <application> 앞에 삽입.
-            # speech_to_text는 RecognitionService 인텐트를 해결할 수 있어야 하므로
-            # API 30+에서는 명시적 <queries>가 필수.
-            sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.BLUETOOTH"/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>\n\n    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" />\n        </intent>\n    </queries>\n\n    <application#' "$MANIFEST"
-          fi
-
-          echo "----- AndroidManifest.xml -----"
-          cat "$MANIFEST"
-
-      - name: Disable R8 minification + resource shrinking (release build)
-        shell: bash
-        run: |
-          # flutter_gemma의 transitive 의존성(okhttp 등)이 optional 라이브러리들을
-          # 참조하기 때문에 R8이 "missing class" 에러를 뿜는다. release 빌드에서
-          # minify/shrink를 꺼서 우회한다. APK가 살짝 커지지만 동작엔 무관.
-          GRADLE_KTS="android/app/build.gradle.kts"
-          GRADLE_GROOVY="android/app/build.gradle"
-
-          if [ -f "$GRADLE_KTS" ]; then
-            FILE="$GRADLE_KTS"
-            if ! grep -q "isMinifyEnabled" "$FILE"; then
-              # release { 다음 줄에 minify/shrink 비활성화 삽입
-              sed -i '/^[[:space:]]*release[[:space:]]*{[[:space:]]*$/a\            isMinifyEnabled = false\n            isShrinkResources = false' "$FILE"
-            fi
-          elif [ -f "$GRADLE_GROOVY" ]; then
-            FILE="$GRADLE_GROOVY"
-            if ! grep -q "minifyEnabled" "$FILE"; then
-              sed -i '/^[[:space:]]*release[[:space:]]*{[[:space:]]*$/a\            minifyEnabled false\n            shrinkResources false' "$FILE"
-            fi
-          else
-            echo "::error::Neither build.gradle nor build.gradle.kts found"
-            exit 1
-          fi
-
-          echo "----- After patch: $FILE -----"
-          cat "$FILE"
-
-      - name: Bump Android minSdkVersion to 24 and compileSdk to 36
-        shell: bash
-        run: |
-          GRADLE="android/app/build.gradle"
-          GRADLE_KTS="android/app/build.gradle.kts"
-
-          if [ -f "$GRADLE_KTS" ]; then
-            FILE="$GRADLE_KTS"
-          else
-            FILE="$GRADLE"
-          fi
-
-          echo "----- Before patch: $FILE -----"
-          grep -E "(min|compile)Sdk" "$FILE" || echo "(no Sdk lines found)"
-
-          # minSdk: flutter_gemma 요구사항 24+
-          sed -i 's#minSdkVersion flutter.minSdkVersion#minSdkVersion 24#g' "$FILE" 2>/dev/null || true
-          sed -i 's#minSdk = flutter.minSdkVersion#minSdk = 24#g' "$FILE" 2>/dev/null || true
-          sed -i 's#minSdk flutter.minSdkVersion#minSdk 24#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#minSdkVersion ([0-9]+)#minSdkVersion 24#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#minSdk = ([0-9]+)#minSdk = 24#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#minSdk ([0-9]+)#minSdk 24#g' "$FILE" 2>/dev/null || true
-
-          # compileSdk: background_downloader/androidx.core 1.17 요구사항 36+
-          sed -i 's#compileSdkVersion flutter.compileSdkVersion#compileSdkVersion 36#g' "$FILE" 2>/dev/null || true
-          sed -i 's#compileSdk = flutter.compileSdkVersion#compileSdk = 36#g' "$FILE" 2>/dev/null || true
-          sed -i 's#compileSdk flutter.compileSdkVersion#compileSdk 36#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#compileSdkVersion ([0-9]+)#compileSdkVersion 36#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#compileSdk = ([0-9]+)#compileSdk = 36#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#compileSdk ([0-9]+)#compileSdk 36#g' "$FILE" 2>/dev/null || true
-
-          # targetSdk도 36으로 (호환성)
-          sed -i 's#targetSdkVersion flutter.targetSdkVersion#targetSdkVersion 36#g' "$FILE" 2>/dev/null || true
-          sed -i 's#targetSdk = flutter.targetSdkVersion#targetSdk = 36#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#targetSdkVersion ([0-9]+)#targetSdkVersion 36#g' "$FILE" 2>/dev/null || true
-          sed -i -E 's#targetSdk = ([0-9]+)#targetSdk = 36#g' "$FILE" 2>/dev/null || true
-
-          echo "----- After patch: $FILE -----"
-          grep -E "(min|compile|target)Sdk" "$FILE" || echo "(no Sdk lines found)"
-
-      - name: Patch pub-cache plugin compileSdk to 36
-        shell: bash
-        run: |
-          # GitHub Actions의 set -eo pipefail로 인해 빈 결과/실패가 전체 스크립트를
-          # 종료시키지 않도록 pipefail을 끄고, 디렉토리 존재를 명시적으로 검사한다.
           set +o pipefail
-
-          # pub-cache 채우기
           flutter pub get
-
-          # 패치 대상 디렉토리 (존재하는 것만 사용)
-          PATCH_PATHS=()
-          for candidate in "$HOME/.pub-cache/hosted" "$HOME/.pub-cache/global_packages"; do
-            [ -d "$candidate" ] && PATCH_PATHS+=("$candidate")
-          done
-
-          echo "----- 패치 대상 디렉토리 -----"
-          printf ' - %s\n' "${PATCH_PATHS[@]}"
-
-          patch_one_file() {
-            local f="$1"
-            echo "Patching: $f"
-            sed -i 's#compileSdkVersion flutter.compileSdkVersion#compileSdkVersion 36#g' "$f" 2>/dev/null || true
-            sed -i 's#compileSdk = flutter.compileSdkVersion#compileSdk = 36#g' "$f" 2>/dev/null || true
-            sed -i 's#compileSdk flutter.compileSdkVersion#compileSdk 36#g' "$f" 2>/dev/null || true
-            sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
+          find "$HOME/.pub-cache/hosted" -path "*/android/build.gradle*" 2>/dev/null | while read f; do
             sed -i -E 's#compileSdk[[:space:]]*=[[:space:]]*[0-9]+#compileSdk = 36#g' "$f" 2>/dev/null || true
-            sed -i -E 's#compileSdk[[:space:]]+[0-9]+#compileSdk 36#g' "$f" 2>/dev/null || true
-          }
-
-          echo "----- 패치 진행 -----"
-          for base in "${PATCH_PATHS[@]}"; do
-            # process substitution(< <(...))으로 pipefail 영향 제거
-            while IFS= read -r f; do
-              [ -n "$f" ] && patch_one_file "$f"
-            done < <(find "$base" -path "*/android/build.gradle*" 2>/dev/null)
+            sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
           done
 
-          echo "----- 검증: flutter_gemma의 compileSdk -----"
-          for base in "${PATCH_PATHS[@]}"; do
-            while IFS= read -r f; do
-              if [ -n "$f" ]; then
-                echo "--- $f ---"
-                grep -E "compileSdk" "$f" 2>/dev/null || echo "(no compileSdk line)"
-              fi
-            done < <(find "$base" -path "*flutter_gemma*/android/build.gradle*" 2>/dev/null)
-          done
-          echo "----- 검증 끝 -----"
-
-      # (의존성은 이전 "Patch pub-cache" 단계에서 이미 flutter pub get으로 받음)
-
-      - name: Analyze (non-fatal)
+      - name: Analyze
         run: flutter analyze || true
 
-      - name: Build release APK (split per ABI)
-        run: flutter build apk --release --split-per-abi
+      - name: Build debug APK
+        run: flutter build apk --debug
 
-      - name: Build universal release APK
-        run: flutter build apk --release
-
-      - name: List APK outputs
-        run: ls -lh build/app/outputs/flutter-apk/
-
-      - name: Upload APKs as artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: meeting-assistant-apk
-          path: build/app/outputs/flutter-apk/*.apk
-          if-no-files-found: error
-          retention-days: 30
+          name: meeting-assistant-debug-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14

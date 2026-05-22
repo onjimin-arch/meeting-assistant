@@ -64,6 +64,7 @@ class _MinutesScreenState extends ConsumerState<MinutesScreen> {
       final pageId = await notionService.saveMinutesToNotion(
         title: widget.meeting.title,
         minutes: widget.meeting.minutes,
+        dateTime: widget.meeting.dateTime,
       );
 
       if (!mounted) return;

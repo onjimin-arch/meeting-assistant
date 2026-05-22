@@ -20,13 +20,18 @@ pubspec.lock
 .DS_Store
 Thumbs.db
 
-# CI에서 생성되는 네이티브 폴더 (저장소엔 푸시하지 않음 — 빌드 시 생성)
-android/
+# 네이티브 폴더 (android는 서명 설정 포함해 추적)
 ios/
 web/
 windows/
 linux/
 macos/
+
+# Android 서명 키 (절대 커밋 금지)
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+android/app/*.b64
 
 # Local-only files
 *.apk
