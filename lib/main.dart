@@ -56,6 +56,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.initState();
     _sttService = PlatformSttService();
     _gemmaInference = GemmaInferenceService();
+    _sttService.onError = (msg, permanent) {
+      if (!mounted) return;
+      final label = _sttErrorLabel(msg);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('음성 인식 오류: $label'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    };
+    // initState에서는 context 사용 불가 — onError는 콜백이므로 mounted 체크로 안전
   }
 
   Future<void> _startRecording() async {
@@ -261,43 +272,22 @@ class _AppShellState extends ConsumerState<AppShell> {
   String _fmtMB(int bytes) =>
       '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
+  String _sttErrorLabel(String errorMsg) {
+    switch (errorMsg) {
+      case 'error_audio': return '마이크 접근 실패 (설정 > 앱 > 마이크 권한 확인)';
+      case 'error_permission': return '마이크 권한이 거부되었습니다';
+      case 'error_recognizer_busy': return '음성 인식기가 사용 중입니다. 잠시 후 다시 시도하세요';
+      case 'error_server': return '음성 인식 서버 오류 (인터넷 연결 확인)';
+      case 'error_network': return '네트워크 오류 (인터넷 연결 확인)';
+      case 'error_insufficient_permissions': return '마이크 권한이 없습니다';
+      default: return errorMsg;
+    }
+  }
+
   Future<void> _stopRecordingAndProcess() async {
     final transcript = await _sttService.stopListening();
     final duration = DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
     await _processTranscript(transcript, duration.inSeconds);
-  }
-
-  static const _dummyTranscript =
-      '안녕하세요 오늘 2분기 마케팅 전략 회의 시작하겠습니다. '
-      '먼저 1분기 성과를 보면 앱 다운로드 수가 전분기 대비 23% 증가했고 MAU는 15만 명을 달성했습니다. '
-      '다만 리텐션 지표가 D7 기준 28%로 목표치인 35%에 미치지 못했습니다. '
-      '이에 따라 2분기에는 온보딩 플로우 개선과 푸시 알림 개인화에 집중하기로 했습니다. '
-      '예산은 전분기와 동일한 3천만원이며 퍼포먼스 마케팅 40%, 콘텐츠 마케팅 35%, 이벤트 25%로 배분합니다. '
-      '다음 달 15일까지 각 팀에서 세부 실행 계획서를 제출해 주시기 바랍니다. '
-      '이상으로 회의를 마치겠습니다.';
-
-  Future<void> _startTestMode() async {
-    debugPrint('[TEST] _startTestMode called');
-    var llm = ref.read(llmStateProvider);
-    // unknown 상태(초기 체크 중)이면 완료될 때까지 폴링
-    if (llm.status == LlmReadiness.unknown) {
-      for (int i = 0; i < 20; i++) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        llm = ref.read(llmStateProvider);
-        if (llm.status != LlmReadiness.unknown) break;
-      }
-    }
-    debugPrint('[TEST] LLM status: ${llm.status}');
-    if (llm.status == LlmReadiness.needsDownload) {
-      final shouldDownload = await _showModelDownloadDialog();
-      if (!shouldDownload) return;
-      await _showDownloadProgressDialog();
-      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-    } else if (llm.status == LlmReadiness.loading) {
-      await _showLoadingProgressDialog();
-      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-    }
-    await _processTranscript(_dummyTranscript, 312);
   }
 
   Future<void> _processTranscript(String transcript, int durationSeconds) async {
@@ -432,7 +422,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       canPop: false,
       child: HomeScreen(
         onStartRecording: () => _startRecording(),
-        onTestMode: () => _startTestMode(),
         onSelectMeeting: (meeting) {
           debugPrint('[NAV] onSelectMeeting: ${meeting.title}');
           ref.read(currentMeetingProvider.notifier).state = meeting;

@@ -25,6 +25,9 @@ class PlatformSttService {
   /// 누적된 최종 텍스트가 갱신될 때 (한 문장 완성, 세션 재시작 시점 등)
   void Function(String accumulated)? onAccumulated;
 
+  /// STT 오류 발생 시 (영구 오류 포함) — UI에서 스낵바 등으로 표시
+  void Function(String errorMsg, bool permanent)? onError;
+
   bool get isListening => _wantsToListen;
 
   /// 1회 초기화 — 마이크/음성인식 권한 요청 트리거됨.
@@ -32,7 +35,17 @@ class PlatformSttService {
   Future<bool> initialize() async {
     if (_available) return true;
     _available = await _stt.initialize(
-      onError: (e) => debugPrint('[STT] error: ${e.errorMsg} (perm=${e.permanent})'),
+      onError: (e) {
+        debugPrint('[STT] error: ${e.errorMsg} (perm=${e.permanent})');
+        // error_no_match는 무음/인식 실패로 재시작 필요, 에러 아님
+        if (e.errorMsg == 'error_no_match' || e.errorMsg == 'error_speech_timeout') {
+          if (_wantsToListen) _restartSession();
+          return;
+        }
+        if (e.permanent) {
+          onError?.call(e.errorMsg, true);
+        }
+      },
       onStatus: (status) {
         debugPrint('[STT] status: $status');
         // 세션이 자연 종료되면(타임아웃/무음) 사용자가 여전히 녹음 중이면 재시작.
@@ -63,13 +76,13 @@ class PlatformSttService {
   Future<void> _startSession() async {
     await _stt.listen(
       onResult: _onResult,
-      localeId: _localeId,
-      listenFor: const Duration(seconds: 55),
-      pauseFor: const Duration(seconds: 60),
       listenOptions: SpeechListenOptions(
+        localeId: _localeId,
         listenMode: ListenMode.dictation,
         partialResults: true,
         cancelOnError: false,
+        listenFor: const Duration(seconds: 55),
+        pauseFor: const Duration(seconds: 10),
       ),
     );
   }
