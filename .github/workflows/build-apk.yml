@@ -1,6 +1,4 @@
-name: Build Android APK (CI)
-
-run-name: "CI #${{ github.run_number }} (${{ github.ref_name }}) — ${{ github.event.head_commit.message || 'manual' }}"
+﻿name: Build Android APK
 
 on:
   push:
@@ -11,41 +9,113 @@ on:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Flutter Debug Build
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
+    permissions:
+      contents: read
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
-          distribution: temurin
           java-version: '17'
+          distribution: 'temurin'
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: 'stable'
           cache: true
 
-      - name: Patch pub-cache plugin compileSdk
+      - name: Patch plugin compileSdk
         run: |
-          set +o pipefail
-          flutter pub get
-          find "$HOME/.pub-cache/hosted" -path "*/android/build.gradle*" 2>/dev/null | while read f; do
-            sed -i -E 's#compileSdk[[:space:]]*=[[:space:]]*[0-9]+#compileSdk = 36#g' "$f" 2>/dev/null || true
-            sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
+          find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
+            if grep -q 'compileSdk' "$f"; then
+              sed -i 's/compileSdk [0-9]*/compileSdk 36/' "$f"
+            fi
           done
 
-      - name: Analyze
-        run: flutter analyze || true
+      - name: flutter pub get
+        run: flutter pub get
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: flutter analyze (non-blocking)
+        run: flutter analyze --no-fatal-infos || true
 
-      - name: Upload APK
+      - name: Build Debug APK
+        id: build
+        run: flutter build apk --debug 2>&1 | tee build_output.txt
+
+      - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: meeting-assistant-debug-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 14
+
+      - name: Slack — 빌드 성공
+        if: success()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": ":white_check_mark: *Meeting Assistant 빌드 성공* (#${{ github.run_number }})",
+              "attachments": [{
+                "color": "#36a64f",
+                "fields": [
+                  {"title": "브랜치", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "커밋", "value": "${{ github.event.head_commit.message || 'PR/수동' }}", "short": false},
+                  {"title": "APK 다운로드", "value": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Artifacts에서 다운로드>", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Capture error tail
+        if: failure() && steps.build.outcome == 'failure'
+        run: tail -80 build_output.txt > error_tail.txt 2>/dev/null || echo "로그 없음" > error_tail.txt
+
+      - name: Upload error logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-logs-${{ github.run_number }}
+          path: |
+            build_output.txt
+            error_tail.txt
+          retention-days: 7
+
+      - name: Read error tail for Slack
+        if: failure()
+        id: errlog
+        run: |
+          MSG=$(tail -20 error_tail.txt 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g' || echo "로그 없음")
+          echo "msg=$MSG" >> $GITHUB_OUTPUT
+
+      - name: Slack — 빌드 실패
+        if: failure()
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          payload: |
+            {
+              "text": ":x: *Meeting Assistant 빌드 실패* (#${{ github.run_number }})",
+              "attachments": [{
+                "color": "#e01e5a",
+                "fields": [
+                  {"title": "브랜치", "value": "${{ github.ref_name }}", "short": true},
+                  {"title": "커밋", "value": "${{ github.event.head_commit.message || 'PR/수동' }}", "short": false},
+                  {"title": "에러 요약", "value": "${{ steps.errlog.outputs.msg }}", "short": false},
+                  {"title": "전체 로그", "value": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|GitHub Actions에서 보기>", "short": false}
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
