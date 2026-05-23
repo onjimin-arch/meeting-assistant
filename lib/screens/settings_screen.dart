@@ -44,7 +44,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // 헤더
+            // ?�더
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
@@ -66,7 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const SizedBox(width: 10),
                   const Text(
-                    '설정',
+                    '?�정',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -76,16 +76,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
             ),
-            // 스크롤 영역
+            // ?�크�??�역
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Notion 연동
+                    // Notion ?�동
                     const Text(
-                      'NOTION 연동',
+                      'NOTION ?�동',
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color(0xFF8e8ea0),
@@ -95,7 +95,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 10),
                     _buildTextField(
-                      label: 'API 토큰',
+                      label: 'API ?�큰',
                       controller: _tokenController,
                       placeholder: 'secret_xxxxxxxxx',
                       isPassword: true,
@@ -103,13 +103,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 10),
                     _buildTextField(
-                      label: '저장 페이지 URL',
+                      label: '?�???�이지 URL',
                       controller: _pageUrlController,
                       placeholder: 'https://notion.so/...',
                       isPassword: false,
                     ),
                     const SizedBox(height: 10),
-                    // 자동 저장 토글
+                    // ?�동 ?�???��?
                     GestureDetector(
                       onTap: () {
                         ref
@@ -136,7 +136,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
                                 Text(
-                                  '회의록 완성 시 자동 저장',
+                                  '?�의�??�성 ???�동 ?�??,
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Color(0xFFececec),
@@ -145,7 +145,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  '완성 즉시 Notion 에 자동으로 저장됩니다',
+                                  '?�성 즉시 Notion ???�동?�로 ?�?�됩?�다',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: Color(0xFF8e8ea0),
@@ -191,14 +191,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Notion 가이드
+                    // Notion 가?�드
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1a1a1a),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF10a37f).opacity(0.3),
+                          color: const Color(0xFF10a37f)withOpacity(0.3),
                         ),
                       ),
                       child: Column(
@@ -213,7 +213,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                               SizedBox(width: 8),
                               Text(
-                                'Notion 연동 가이드',
+                                'Notion ?�동 가?�드',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF10a37f),
@@ -224,28 +224,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            '1. Not 에서 "새 페이지 생성"',
+                            '1. Not ?�서 "???�이지 ?�성"',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
                             ),
                           ),
                           Text(
-                            '2. "연결" → "AX Bot" 추가',
+                            '2. "?�결" ??"AX Bot" 추�?',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
                             ),
                           ),
                           Text(
-                            '3. 페이지 공유 → "초대" → "AX Bot" 선택',
+                            '3. ?�이지 공유 ??"초�?" ??"AX Bot" ?�택',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
                             ),
                           ),
                           Text(
-                            '4. API 토큰 입력',
+                            '4. API ?�큰 ?�력',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
@@ -255,9 +255,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // 회의록 작성 지침
-                    const Text(
-                      '회의록 작성 지침',
+                    // ?�의�??�성 지�?                    const Text(
+                      '?�의�??�성 지�?,
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color(0xFF8e8ea0),
@@ -275,7 +274,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       decoration: InputDecoration(
                         hintText:
-                            '예: 참석자, 안건, 결정사항, 액션아이템 순으로 작성하되 담당자와 마감일 포함...',
+                            '?? 참석?? ?�건, 결정?�항, ?�션?�이???�으�??�성?�되 ?�당?��? 마감???�함...',
                         hintStyle: const TextStyle(
                           color: Color(0xFF8e8ea0),
                         ),
@@ -299,9 +298,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // 모델 정보
+                    // 모델 ?�보
                     const Text(
-                      '모델 정보',
+                      '모델 ?�보',
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color(0xFF8e8ea0),
@@ -322,11 +321,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       child: Column(
                         children: [
-                          _buildInfoRow('STT 엔진', '플랫폼 내장 (Google/Apple)', 0),
+                          _buildInfoRow('STT ?�진', '?�랫???�장 (Google/Apple)', 0),
                           _buildInfoRow('LLM 모델', 'Gemma 4 2B', 1),
-                          _buildInfoRow('처리 방식', '온디바이스', 2),
+                          _buildInfoRow('처리 방식', '?�디바이??, 2),
                           _buildInfoRow(
-                            '지원 플랫폼',
+                            '지???�랫??,
                             'Android / iOS',
                             3,
                             isLast: true,
@@ -335,7 +334,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    // 저장 버튼
+                    // ?�??버튼
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -353,7 +352,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('설정이 저장되었습니다.')),
+                                content: Text('?�정???�?�되?�습?�다.')),
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -364,7 +363,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ),
                         child: const Text(
-                          '저장',
+                          '?�??,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

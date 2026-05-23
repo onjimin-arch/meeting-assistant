@@ -14,12 +14,10 @@ dependencies:
   # 상태 관리
   flutter_riverpod: ^2.5.1
 
-  # STT: 플랫폼 내장 음성 인식 (Android SpeechRecognizer / iOS SFSpeechRecognizer)
-  # v7+ 사용 — v1 embedding(Registrar) 제거됨, Flutter 3.29+ 호환
+  # STT: 플랫폼 내장 음성 인식
   speech_to_text: ^7.0.0
 
-  # LLM: 온디바이스 Gemma 추론 (MediaPipe LLM Inference 래퍼)
-  # 모델 파일 (.task) 을 별도 다운로드해서 사용
+  # LLM: 온디바이스 Gemma 추론
   flutter_gemma: ^0.10.0
 
   # Notion API / 모델 다운로드
@@ -40,9 +38,6 @@ dependencies:
   path_provider: ^2.1.3
   path: ^1.9.0
 
-  # 오디오 녹음 (AAC 형식) - flutter_sound 대신 record 사용
-  record: ^5.0.4
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -50,5 +45,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # assets:
-  # - assets/ # 모델 파일은 첫 실행 시 다운로드되어 path_provider 경로에 저장됨
