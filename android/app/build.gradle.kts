@@ -12,9 +12,8 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.example.meeting_assistant"
-    compileSdk = 36
-    ndkVersion = "30.0.14904198"
+  namespace = "com.example.meeting_assistant"
+  compileSdk = 36
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
