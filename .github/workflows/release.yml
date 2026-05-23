@@ -78,12 +78,11 @@ jobs:
             --arg tag "$TAG" \
             --arg url "$APK_URL" \
             '{blocks:[
-              {type:"section",text:{type:"mrkdwn",text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*")}},
-              {type:"actions",elements:[
-                {type:"button",style:"primary",
+              {type:"section",
+               text:{type:"mrkdwn",text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*")},
+               accessory:{type:"button",style:"primary",
                  text:{type:"plain_text",text:"APK 다운로드",emoji:true},
-                 url:$url}
-              ]}
+                 url:$url,action_id:"download_apk"}}
             ]}')
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' -d "$PAYLOAD"
