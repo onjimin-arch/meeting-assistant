@@ -68,22 +68,21 @@ jobs:
 
       - name: Slack — 릴리즈 성공
         if: success()
-        uses: slackapi/slack-github-action@v1.27.0
-        with:
-          payload: |
-            {
-              "text": ":rocket: *Meeting Assistant ${{ steps.tag.outputs.tag }} 릴리즈 완료!*",
-              "attachments": [{
-                "color": "#36a64f",
-                "fields": [
-                  {"title": "버전", "value": "${{ steps.tag.outputs.tag }}", "short": true},
-                  {"title": "APK 다운로드", "value": "<https://github.com/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.tag }}|GitHub Releases>", "short": false}
-                ]
-              }]
-            }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+          TAG: ${{ steps.tag.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg tag "$TAG" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            '{text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*"),
+              attachments:[{color:"#36a64f",fields:[
+                {title:"버전",value:$tag,short:true},
+                {title:"APK 다운로드",value:("<"+$url+"|GitHub Releases>"),short:false}
+              ]}]}')
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' -d "$PAYLOAD"
 
       - name: Upload error logs
         if: failure()
@@ -102,20 +101,21 @@ jobs:
 
       - name: Slack — 릴리즈 실패
         if: failure()
-        uses: slackapi/slack-github-action@v1.27.0
-        with:
-          payload: |
-            {
-              "text": ":x: *Meeting Assistant 릴리즈 빌드 실패* (${{ steps.tag.outputs.tag }})",
-              "attachments": [{
-                "color": "#e01e5a",
-                "fields": [
-                  {"title": "태그", "value": "${{ steps.tag.outputs.tag }}", "short": true},
-                  {"title": "에러 요약", "value": "${{ steps.errlog.outputs.msg }}", "short": false},
-                  {"title": "전체 로그", "value": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|GitHub Actions에서 보기>", "short": false}
-                ]
-              }]
-            }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+          TAG: ${{ steps.tag.outputs.tag }}
+          ERR_MSG: ${{ steps.errlog.outputs.msg }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg tag "$TAG" \
+            --arg err "${ERR_MSG:-에러 로그 없음}" \
+            --arg url "$RUN_URL" \
+            '{text:(":x: *Meeting Assistant 릴리즈 빌드 실패* ("+$tag+")"),
+              attachments:[{color:"#e01e5a",fields:[
+                {title:"태그",value:$tag,short:true},
+                {title:"에러 요약",value:$err,short:false},
+                {title:"전체 로그",value:("<"+$url+"|GitHub Actions에서 보기>"),short:false}
+              ]}]}')
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-type: application/json' -d "$PAYLOAD"
