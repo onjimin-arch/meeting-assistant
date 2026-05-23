@@ -33,18 +33,34 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Check Flutter version
+        run: flutter --version
+
       - name: Accept Android licenses
         run: |
           mkdir -p $ANDROID_HOME/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "84831b9409646a918e30573bab4c9c91346d8abd" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "d975f751698a77b662f1254f32502067b88d9c80" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "33b6a27a44d8d69b23294c8a9c67a98e61e0da3d" >> $ANDROID_HOME/licenses/android-sdk-license
+
+      - name: Clean build
+        run: flutter clean
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK
-        run: flutter build apk --release --verbose
+      - name: Build APK (debug first)
+        run: flutter build apk --debug
+
+      - name: Build APK (release)
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
 
       - name: Create GitHub Release
         id: create_release
@@ -60,13 +76,3 @@ jobs:
           files: build/app/outputs/flutter-apk/app-release.apk
           draft: false
           prerelease: false
-          
-      - name: Upload artifact (for debugging)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            build/*/intermediates/
-            build/*/outputs/
-          retention-days: 1
