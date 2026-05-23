@@ -77,11 +77,14 @@ jobs:
           PAYLOAD=$(jq -n \
             --arg tag "$TAG" \
             --arg url "$APK_URL" \
-            '{text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*"),
-              attachments:[{color:"#36a64f",fields:[
-                {title:"버전",value:$tag,short:true},
-                {title:"APK 다운로드",value:("<"+$url+"|app-arm64-v8a-release.apk 직접 다운로드>"),short:false}
-              ]}]}')
+            '{blocks:[
+              {type:"section",text:{type:"mrkdwn",text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*")}},
+              {type:"actions",elements:[
+                {type:"button",style:"primary",
+                 text:{type:"plain_text",text:"APK 다운로드",emoji:true},
+                 url:$url}
+              ]}
+            ]}')
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' -d "$PAYLOAD"
 
