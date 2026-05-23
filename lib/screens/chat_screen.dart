@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meeting.dart';
 import '../providers/app_state.dart';
 import '../services/gemma_inference_service.dart';
+import '../services/openai_llm_service.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final Meeting meeting;
@@ -56,11 +57,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _inputController.clear();
 
     try {
-      final response = await GemmaInferenceService().processQuery(
-        query: text,
-        transcript: widget.meeting.transcript,
-        minutes: widget.meeting.minutes,
-      );
+      final settings = ref.read(appSettingsProvider);
+      final String response;
+      if (settings.useCloudLlm) {
+        response = await OpenAiLlmService.processQuery(
+          query: text,
+          transcript: widget.meeting.transcript,
+          minutes: widget.meeting.minutes,
+          apiKey: settings.openaiApiKey ?? '',
+        );
+      } else {
+        response = await GemmaInferenceService().processQuery(
+          query: text,
+          transcript: widget.meeting.transcript,
+          minutes: widget.meeting.minutes,
+        );
+      }
       if (!mounted) return;
       final assistantMessage = ChatMessage(
         role: 'assistant',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/app_state.dart';
 
 class ProcessingScreen extends ConsumerWidget {
   final int step;
@@ -13,9 +14,13 @@ class ProcessingScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final useCloudLlm = ref.watch(appSettingsProvider).useCloudLlm;
     final steps = [
       {'label': '음성 파일 변환 중', 'sub': 'OpenAI Whisper API'},
-      {'label': '회의록 생성 중', 'sub': 'Gemma 3 1B on-device'},
+      {
+        'label': '회의록 생성 중',
+        'sub': useCloudLlm ? 'OpenAI GPT-4o mini' : 'Gemma 3 1B on-device',
+      },
       if (autoSave) {'label': 'Notion에 저장 중', 'sub': '지정 페이지에 업로드'},
     ];
 

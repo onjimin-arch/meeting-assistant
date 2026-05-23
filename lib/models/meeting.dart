@@ -30,8 +30,11 @@ class AppSettings {
   /// 회의록 작성 지침
   final String? minutesInstructions;
 
-  /// OpenAI API 키 (Whisper STT 용)
+  /// OpenAI API 키 (Whisper STT + 선택적으로 GPT 회의록 생성)
   final String? openaiApiKey;
+
+  /// 회의록 생성 엔진: true = OpenAI GPT, false = 온디바이스 Gemma
+  final bool useCloudLlm;
 
   AppSettings({
     this.notionToken,
@@ -39,6 +42,7 @@ class AppSettings {
     this.autoSaveToNotion = false,
     this.minutesInstructions,
     this.openaiApiKey,
+    this.useCloudLlm = false,
   });
 
   AppSettings copyWith({
@@ -47,6 +51,7 @@ class AppSettings {
     bool? autoSaveToNotion,
     String? minutesInstructions,
     String? openaiApiKey,
+    bool? useCloudLlm,
   }) {
     return AppSettings(
       notionToken: notionToken ?? this.notionToken,
@@ -54,6 +59,7 @@ class AppSettings {
       autoSaveToNotion: autoSaveToNotion ?? this.autoSaveToNotion,
       minutesInstructions: minutesInstructions ?? this.minutesInstructions,
       openaiApiKey: openaiApiKey ?? this.openaiApiKey,
+      useCloudLlm: useCloudLlm ?? this.useCloudLlm,
     );
   }
 }

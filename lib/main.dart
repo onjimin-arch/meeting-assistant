@@ -12,6 +12,7 @@ import 'screens/settings_screen.dart';
 import 'services/audio_recorder_service.dart';
 import 'services/whisper_api_service.dart';
 import 'services/gemma_inference_service.dart';
+import 'services/openai_llm_service.dart';
 import 'services/notion_sync_service.dart';
 
 void main() {
@@ -61,38 +62,42 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Future<void> _startRecording() async {
-    // LLM 모델 준비 확인
-    final llm = ref.read(llmStateProvider);
+    final settings = ref.read(appSettingsProvider);
 
-    if (llm.status == LlmReadiness.needsDownload) {
-      final shouldDownload = await _showModelDownloadDialog();
-      if (!shouldDownload) return;
-      await _showDownloadProgressDialog();
-      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-    } else if (llm.status == LlmReadiness.loading) {
-      await _showLoadingProgressDialog();
-      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-    } else if (llm.status == LlmReadiness.error) {
-      final shouldRetry = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF2f2f2f),
-          title: const Text('모델 로드 실패', style: TextStyle(color: Color(0xFFececec))),
-          content: Text(
-            '모델 준비 중 오류가 발생했습니다.\n${llm.errorMessage ?? ""}\n\n다시 시도하시겠습니까?',
-            style: const TextStyle(color: Color(0xFFececec)),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('재시도')),
-          ],
-        ),
-      );
-      if (shouldRetry == true) {
+    // 로컬 Gemma 사용 시에만 모델 준비 확인
+    if (!settings.useCloudLlm) {
+      final llm = ref.read(llmStateProvider);
+
+      if (llm.status == LlmReadiness.needsDownload) {
+        final shouldDownload = await _showModelDownloadDialog();
+        if (!shouldDownload) return;
         await _showDownloadProgressDialog();
         if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-      } else {
-        return;
+      } else if (llm.status == LlmReadiness.loading) {
+        await _showLoadingProgressDialog();
+        if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+      } else if (llm.status == LlmReadiness.error) {
+        final shouldRetry = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2f2f2f),
+            title: const Text('모델 로드 실패', style: TextStyle(color: Color(0xFFececec))),
+            content: Text(
+              '모델 준비 중 오류가 발생했습니다.\n${llm.errorMessage ?? ""}\n\n다시 시도하시겠습니까?',
+              style: const TextStyle(color: Color(0xFFececec)),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('재시도')),
+            ],
+          ),
+        );
+        if (shouldRetry == true) {
+          await _showDownloadProgressDialog();
+          if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+        } else {
+          return;
+        }
       }
     }
 
@@ -319,10 +324,19 @@ class _AppShellState extends ConsumerState<AppShell> {
       String? gemmaError;
 
       try {
-        final minutesResult = await _gemmaInference.generateMinutes(
-          transcript: transcript,
-          instructions: settings.minutesInstructions,
-        );
+        final Map<String, String> minutesResult;
+        if (settings.useCloudLlm) {
+          minutesResult = await OpenAiLlmService.generateMinutes(
+            transcript: transcript,
+            apiKey: settings.openaiApiKey ?? '',
+            instructions: settings.minutesInstructions,
+          );
+        } else {
+          minutesResult = await _gemmaInference.generateMinutes(
+            transcript: transcript,
+            instructions: settings.minutesInstructions,
+          );
+        }
         title = minutesResult['title']!;
         minutes = minutesResult['minutes']!;
         minutesSuccess = true;
