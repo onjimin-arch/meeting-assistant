@@ -41,3 +41,4 @@ android/app/*.b64
 # Model cache (런타임 다운로드)
 assets/models/*
 !assets/models/.gitkeep
+.env
