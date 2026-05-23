@@ -40,12 +40,31 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
+      - name: Patch plugin compileSdk
+        run: |
+          find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
+            if grep -q 'compileSdk' "$f"; then
+              sed -i 's/compileSdk [0-9]*/compileSdk 36/' "$f"
+            fi
+          done
+
       - name: flutter clean
         run: flutter clean && flutter pub get
 
+      - name: Patch plugin compileSdk (after clean)
+        run: |
+          find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
+            if grep -q 'compileSdk' "$f"; then
+              sed -i 's/compileSdk [0-9]*/compileSdk 36/' "$f"
+            fi
+          done
+
       - name: Build Release APK
         id: build
-        run: flutter build apk --release --split-per-abi 2>&1 | tee build_output.txt
+        run: |
+          set -o pipefail
+          flutter build apk --release --split-per-abi 2>&1 | tee build_output.txt
+          ls build/app/outputs/flutter-apk/
 
       - name: Create GitHub Release
         if: success()
@@ -53,6 +72,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: "Meeting Assistant ${{ steps.tag.outputs.tag }}"
+          fail_on_unmatched_files: true
           files: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           body: |
             ## Meeting Assistant ${{ steps.tag.outputs.tag }}
