@@ -8,6 +8,7 @@ class AppSettingsService {
   static const String _notionPageUrlKey = 'notion_page_url';
   static const String _autoSaveKey = 'auto_save_to_notion';
   static const String _minutesInstructionsKey = 'minutes_instructions';
+  static const String _openaiApiKeyKey = 'openai_api_key';
 
   /// 설정 로드
   Future<AppSettings> loadSettings() async {
@@ -19,6 +20,7 @@ class AppSettingsService {
         notionPageUrl: prefs.getString(_notionPageUrlKey),
         autoSaveToNotion: prefs.getBool(_autoSaveKey) ?? false,
         minutesInstructions: prefs.getString(_minutesInstructionsKey),
+        openaiApiKey: prefs.getString(_openaiApiKeyKey),
       );
     } catch (e) {
       debugPrint('[Settings] 설정 로드 실패: $e');
@@ -45,6 +47,10 @@ class AppSettingsService {
           prefs.setString(_minutesInstructionsKey, settings.minutesInstructions!)
         else
           prefs.remove(_minutesInstructionsKey),
+        if (settings.openaiApiKey != null)
+          prefs.setString(_openaiApiKeyKey, settings.openaiApiKey!)
+        else
+          prefs.remove(_openaiApiKeyKey),
       ]);
 
       debugPrint('[Settings] 설정 저장 완료');

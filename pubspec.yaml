@@ -14,7 +14,10 @@ dependencies:
   # 상태 관리
   flutter_riverpod: ^2.5.1
 
-  # STT: 플랫폼 내장 음성 인식
+  # 오디오 녹음 (m4a 파일)
+  record: ^5.2.0
+
+  # STT: 플랫폼 내장 음성 인식 (레거시)
   speech_to_text: ^7.0.0
 
   # LLM: 온디바이스 Gemma 추론

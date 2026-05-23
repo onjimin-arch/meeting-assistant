@@ -30,11 +30,15 @@ class AppSettings {
   /// 회의록 작성 지침
   final String? minutesInstructions;
 
+  /// OpenAI API 키 (Whisper STT 용)
+  final String? openaiApiKey;
+
   AppSettings({
     this.notionToken,
     this.notionPageUrl,
     this.autoSaveToNotion = false,
     this.minutesInstructions,
+    this.openaiApiKey,
   });
 
   AppSettings copyWith({
@@ -42,12 +46,14 @@ class AppSettings {
     String? notionPageUrl,
     bool? autoSaveToNotion,
     String? minutesInstructions,
+    String? openaiApiKey,
   }) {
     return AppSettings(
       notionToken: notionToken ?? this.notionToken,
       notionPageUrl: notionPageUrl ?? this.notionPageUrl,
       autoSaveToNotion: autoSaveToNotion ?? this.autoSaveToNotion,
       minutesInstructions: minutesInstructions ?? this.minutesInstructions,
+      openaiApiKey: openaiApiKey ?? this.openaiApiKey,
     );
   }
 }

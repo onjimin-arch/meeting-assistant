@@ -13,6 +13,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  late TextEditingController _openaiApiKeyController;
   late TextEditingController _tokenController;
   late TextEditingController _pageUrlController;
   late TextEditingController _instructionsController;
@@ -21,14 +22,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final settings = ref.read(appSettingsProvider);
+    _openaiApiKeyController =
+        TextEditingController(text: settings.openaiApiKey ?? '');
     _tokenController = TextEditingController(text: settings.notionToken ?? '');
-    _pageUrlController = TextEditingController(text: settings.notionPageUrl ?? '');
+    _pageUrlController =
+        TextEditingController(text: settings.notionPageUrl ?? '');
     _instructionsController =
         TextEditingController(text: settings.minutesInstructions ?? '');
   }
 
   @override
   void dispose() {
+    _openaiApiKeyController.dispose();
     _tokenController.dispose();
     _pageUrlController.dispose();
     _instructionsController.dispose();
@@ -44,7 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ?�더
+            // 헤더
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
@@ -66,7 +71,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const SizedBox(width: 10),
                   const Text(
-                    '?�정',
+                    '설정',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -76,16 +81,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
             ),
-            // ?�크�??�역
+            // 스크롤 영역
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Notion ?�동
+                    // OpenAI STT 섹션
                     const Text(
-                      'NOTION ?�동',
+                      'OPENAI STT',
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color(0xFF8e8ea0),
@@ -95,7 +100,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 10),
                     _buildTextField(
-                      label: 'API ?�큰',
+                      label: 'OpenAI API 키',
+                      controller: _openaiApiKeyController,
+                      placeholder: 'sk-...',
+                      isPassword: true,
+                      showValue: false,
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1a1a1a),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF10a37f).withOpacity(0.3),
+                        ),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: Color(0xFF10a37f),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Whisper API 안내',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF10a37f),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            '1. platform.openai.com에서 API 키 발급',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF8e8ea0),
+                            ),
+                          ),
+                          Text(
+                            '2. 녹음 후 자동으로 Whisper API 호출',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF8e8ea0),
+                            ),
+                          ),
+                          Text(
+                            '3. 한국어 음성 인식 정확도 향상',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF8e8ea0),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Notion 연동
+                    const Text(
+                      'NOTION 연동',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: Color(0xFF8e8ea0),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTextField(
+                      label: 'API 토큰',
                       controller: _tokenController,
                       placeholder: 'secret_xxxxxxxxx',
                       isPassword: true,
@@ -103,13 +183,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 10),
                     _buildTextField(
-                      label: '?�???�이지 URL',
+                      label: '노션 페이지 URL',
                       controller: _pageUrlController,
                       placeholder: 'https://notion.so/...',
                       isPassword: false,
                     ),
                     const SizedBox(height: 10),
-                    // ?�동 ?�???��?
+                    // 자동 저장 토글
                     GestureDetector(
                       onTap: () {
                         ref
@@ -136,7 +216,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
                                 Text(
-                                  '?�의�??�성 ???�동 ?�??,
+                                  '회의록 작성 시 자동 저장',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Color(0xFFececec),
@@ -145,7 +225,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 ),
                                 SizedBox(height: 2),
                                 Text(
-                                  '?�성 즉시 Notion ???�동?�로 ?�?�됩?�다',
+                                  '작성 즉시 Notion에 자동으로 저장됩니다',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: Color(0xFF8e8ea0),
@@ -176,7 +256,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         color: Colors.white,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: Colors.black.withOpacity(0.3),
+                                            color:
+                                                Colors.black.withOpacity(0.3),
                                             blurRadius: 3,
                                           ),
                                         ],
@@ -191,14 +272,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Notion 가?�드
+                    // Notion 가이드
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1a1a1a),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF10a37f)withOpacity(0.3),
+                          color: const Color(0xFF10a37f).withOpacity(0.3),
                         ),
                       ),
                       child: Column(
@@ -213,7 +294,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                               SizedBox(width: 8),
                               Text(
-                                'Notion ?�동 가?�드',
+                                'Notion 연동 가이드',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Color(0xFF10a37f),
@@ -224,28 +305,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            '1. Not ?�서 "???�이지 ?�성"',
+                            '1. Notion에서 "새 페이지 생성"',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
                             ),
                           ),
                           Text(
-                            '2. "?�결" ??"AX Bot" 추�?',
+                            '2. "연결" → "AX Bot" 추가',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
                             ),
                           ),
                           Text(
-                            '3. ?�이지 공유 ??"초�?" ??"AX Bot" ?�택',
+                            '3. 페이지 공유 → "초대" → "AX Bot" 선택',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
                             ),
                           ),
                           Text(
-                            '4. API ?�큰 ?�력',
+                            '4. API 토큰 입력',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF8e8ea0),
@@ -255,8 +336,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // ?�의�??�성 지�?                    const Text(
-                      '?�의�??�성 지�?,
+                    // 회의록 작성 지침
+                    const Text(
+                      '회의록 작성 지침',
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color(0xFF8e8ea0),
@@ -274,7 +356,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       decoration: InputDecoration(
                         hintText:
-                            '?? 참석?? ?�건, 결정?�항, ?�션?�이???�으�??�성?�되 ?�당?��? 마감???�함...',
+                            '참석자, 결정사항, 액션아이템 위주로 작성하되 마감일도 포함...',
                         hintStyle: const TextStyle(
                           color: Color(0xFF8e8ea0),
                         ),
@@ -298,9 +380,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // 모델 ?�보
+                    // 모델 정보
                     const Text(
-                      '모델 ?�보',
+                      '모델 정보',
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color(0xFF8e8ea0),
@@ -321,11 +403,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       child: Column(
                         children: [
-                          _buildInfoRow('STT ?�진', '?�랫???�장 (Google/Apple)', 0),
-                          _buildInfoRow('LLM 모델', 'Gemma 4 2B', 1),
-                          _buildInfoRow('처리 방식', '?�디바이??, 2),
+                          _buildInfoRow('STT 엔진', 'OpenAI Whisper API', 0),
+                          _buildInfoRow('LLM 모델', 'Gemma 3 1B on-device', 1),
                           _buildInfoRow(
-                            '지???�랫??,
+                              'STT 처리', '클라우드 (인터넷 필요)', 2),
+                          _buildInfoRow(
+                            '지원 플랫폼',
                             'Android / iOS',
                             3,
                             isLast: true,
@@ -334,7 +417,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    // ?�??버튼
+                    // 저장 버튼
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -348,11 +431,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   autoSaveToNotion: settings.autoSaveToNotion,
                                   minutesInstructions:
                                       _instructionsController.text,
+                                  openaiApiKey:
+                                      _openaiApiKeyController.text.isEmpty
+                                          ? null
+                                          : _openaiApiKeyController.text,
                                 ),
                               );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('?�정???�?�되?�습?�다.')),
+                                content: Text('설정이 저장되었습니다.')),
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -363,7 +450,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ),
                         child: const Text(
-                          '?�??,
+                          '저장',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

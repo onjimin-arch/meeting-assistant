@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/meeting.dart';
@@ -8,7 +9,8 @@ import 'screens/processing_screen.dart';
 import 'screens/minutes_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
-import 'services/platform_stt_service.dart';
+import 'services/audio_recorder_service.dart';
+import 'services/whisper_api_service.dart';
 import 'services/gemma_inference_service.dart';
 import 'services/notion_sync_service.dart';
 
@@ -46,7 +48,7 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
-  late final PlatformSttService _sttService;
+  late final AudioRecorderService _audioRecorder;
   late final GemmaInferenceService _gemmaInference;
 
   DateTime? _recordingStartedAt;
@@ -54,18 +56,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
-    _sttService = PlatformSttService();
+    _audioRecorder = AudioRecorderService();
     _gemmaInference = GemmaInferenceService();
-    _sttService.onError = (msg, permanent) {
-      if (!mounted) return;
-      final label = _sttErrorLabel(msg);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('음성 인식 오류: $label'),
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    };
   }
 
   Future<void> _startRecording() async {
@@ -106,10 +98,10 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     try {
       _recordingStartedAt = DateTime.now();
-      await _sttService.startListening(localeId: 'ko_KR');
+      await _audioRecorder.startRecording();
       ref.read(recordingStateProvider.notifier).state = RecordingState.recording;
     } catch (e) {
-      debugPrint('STT 시작 실패: $e');
+      debugPrint('녹음 시작 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('녹음을 시작할 수 없습니다: $e')),
@@ -264,31 +256,61 @@ class _AppShellState extends ConsumerState<AppShell> {
   String _fmtMB(int bytes) =>
   '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
-  String _sttErrorLabel(String errorMsg) {
-    switch (errorMsg) {
-      case 'error_audio': return '마이크 접근 실패 (설정 > 앱 > 마이크 권한 확인)';
-      case 'error_permission': return '마이크 권한이 거부되었습니다';
-      case 'error_recognizer_busy': return '음성 인식기가 사용 중입니다. 잠시 후 다시 시도하세요';
-      case 'error_server': return '음성 인식 서버 오류 (인터넷 연결 확인)';
-      case 'error_network': return '네트워크 오류 (인터넷 연결 확인)';
-      case 'error_insufficient_permissions': return '마이크 권한이 없습니다';
-      default: return errorMsg;
-    }
-  }
-
   Future<void> _stopRecordingAndProcess() async {
-    final transcript = await _sttService.stopListening();
-    final duration = DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
-    await _processTranscript(transcript, duration.inSeconds);
+    final audioPath = await _audioRecorder.stopRecording();
+    final duration =
+        DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
+
+    if (audioPath == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('녹음 파일이 없습니다.')),
+        );
+      }
+      return;
+    }
+
+    final settings = ref.read(appSettingsProvider);
+    final apiKey = settings.openaiApiKey;
+
+    if (apiKey == null || apiKey.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('OpenAI API 키가 설정되지 않았습니다. 설정에서 입력해주세요.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    ref.read(recordingStateProvider.notifier).state = RecordingState.processing;
+    ref.read(processingStepProvider.notifier).state = 0;
+
+    try {
+      final transcript = await WhisperApiService.transcribe(
+        audioPath: audioPath,
+        apiKey: apiKey,
+      );
+      try {
+        await File(audioPath).delete();
+      } catch (_) {}
+      await _processTranscript(transcript, duration.inSeconds);
+    } catch (e) {
+      debugPrint('Whisper API 실패: $e');
+      ref.read(recordingStateProvider.notifier).state = RecordingState.error;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('음성 변환 실패: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _processTranscript(String transcript, int durationSeconds) async {
     try {
       ref.read(recordingStateProvider.notifier).state = RecordingState.processing;
       final settings = ref.read(appSettingsProvider);
-
-      ref.read(processingStepProvider.notifier).state = 0;
-      await Future.delayed(const Duration(milliseconds: 300));
 
       ref.read(processingStepProvider.notifier).state = 1;
       String title = '제목 없음';

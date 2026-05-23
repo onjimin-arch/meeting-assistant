@@ -14,7 +14,7 @@ class ProcessingScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final steps = [
-      {'label': '음성 인식 완료', 'sub': '플랫폼 내장 STT'},
+      {'label': '음성 파일 변환 중', 'sub': 'OpenAI Whisper API'},
       {'label': '회의록 생성 중', 'sub': 'Gemma 3 1B on-device'},
       if (autoSave) {'label': 'Notion에 저장 중', 'sub': '지정 페이지에 업로드'},
     ];
