@@ -1,6 +1,6 @@
 name: Release APK
 
-# v1.0.0 형태의 태그를 push하면 자동 실행
+# v1.0.0 형태의 태그를 push 하면 자동 실행
 on:
   push:
     tags:
@@ -49,11 +49,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           cat > android/key.properties <<EOF
-      storePassword=$STORE_PASSWORD
-      keyPassword=$KEY_PASSWORD
-      keyAlias=$KEY_ALIAS
-      storeFile=meeting-assistant.jks
-      EOF
+storePassword=$STORE_PASSWORD
+keyPassword=$KEY_PASSWORD
+keyAlias=$KEY_ALIAS
+storeFile=meeting-assistant.jks
+EOF
 
       - name: Accept Android SDK licenses & install NDK
         run: |
@@ -100,8 +100,8 @@ jobs:
 
             ### APK 종류
             - `app-release.apk` — 범용 (모든 기기)
-            - `app-arm64-v8a-release.apk` — 64비트 ARM (최신 기기, 권장)
-            - `app-armeabi-v7a-release.apk` — 32비트 ARM (구형 기기)
+            - `app-arm64-v8a-release.apk` — 64 비트 ARM (최신 기기, 권장)
+            - `app-armeabi-v7a-release.apk` — 32 비트 ARM (구형 기기)
             - `app-x86_64-release.apk` — x86 에뮬레이터용
 
             ### 요구사항
@@ -113,10 +113,11 @@ jobs:
 
       - name: Send Slack Notification
         uses: slackapi/slack-github-action@v1.25.0
+        if: always() # 항상 실행 (성공/실패 관계없이)
         with:
           payload: |
             {
-              "text": "🚀 새로운 버전이 배포되었습니다!\n\n*버전:* ${{ steps.tag.outputs.name }}\n*다운로드:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.name }}\n\nAPK 를 다운로드하여 설치하세요."
+              "text": "${{ job.status == 'success' && '🚀' || '❌' }} ${{ job.status == 'success' && '새로운 버전이 배포되었습니다!' || '빌드/배포가 실패했습니다.' }}\n\n*버전:* ${{ steps.tag.outputs.name }}\n*상태:* ${{ job.status }}\n*링크:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n${{ job.status == 'success' && format('다운로드: {0}/{1}/releases/tag/{2}', github.server_url, github.repository, steps.tag.outputs.name) || '자세한 내용은 GitHub Actions 를 확인하세요.' }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
