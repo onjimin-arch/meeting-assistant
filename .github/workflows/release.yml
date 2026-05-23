@@ -5,24 +5,21 @@ on:
     tags:
       - 'v*'
 
-env:
-  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
 jobs:
-  build:
-    name: Build APK
+  build-and-release:
+    name: Build & Release
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      tag_name: ${{ steps.tag.outputs.name }}
-      success: ${{ steps.success.outputs.status }}
+    permissions:
+      contents: write
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Get tag name
         id: tag
-        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -42,44 +39,14 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-files
-          path: |
-            build/app/outputs/flutter-apk/*.apk
-          retention-days: 1
-
-      - name: Set success flag
-        id: success
-        if: always()
-        run: echo "status=${{ job.status }}" >> $GITHUB_OUTPUT
-
-  release:
-    name: Create Release
-    needs: [build]
-    if: needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download APKs
-        uses: actions/download-artifact@v4
-        with:
-          name: apk-files
-          path: apk/
-
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.build.outputs.tag_name }}
-          name: "Meeting Assistant ${{ needs.build.outputs.tag_name }}"
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: "Meeting Assistant ${{ steps.tag.outputs.tag_name }}"
           body: |
-            ## Meeting Assistant ${{ needs.build.outputs.tag_name }}
+            ## Meeting Assistant ${{ steps.tag.outputs.tag_name }}
 
             ### 설치 방법
             1. 아래 APK 중 하나를 다운로드
@@ -88,53 +55,23 @@ jobs:
 
             ### APK 종류
             - `app-release.apk` — 범용 (모든 기기)
-            - `app-arm64-v8a-release.apk` — 64비트 ARM (최신 기기, 권장)
-            - `app-armeabi-v7a-release.apk` — 32비트 ARM (구형 기기)
-            - `app-x86_64-release.apk` — x86 에뮬레이터용
+            - `app-arm64-v8a-release.apk` — 64비트 ARM (권장)
 
             ### 요구사항
             - Android 7.0 (API 24) 이상
-            - 저장공간 약 700MB (Gemma 모델 다운로드 포함)
-          files: apk/*.apk
+          files: build/app/outputs/flutter-apk/*.apk
           draft: false
           prerelease: false
-
-  notify-success:
-    name: Notify Success
-    needs: [build, release]
-    if: always() && needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get tag name
-        id: tag
-        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1.25.0
+          
+      - name: Comment with download links
+        if: success()
+        uses: actions/github-script@v7
         with:
-          payload: |
-            {
-              "text": "🚀 *새로운 버전이 배포되었습니다!*\n\n*버전:* ${{ steps.tag.outputs.name }}\n*릴리스:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.name }}\n\n📥 *다운로드:*\n- ARM64 (권장): ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-arm64-v8a-release.apk\n- 범용: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-release.apk"
-            }
+          script: |
+            const tag = process.env.TAG_NAME;
+            const repo = process.env.REPO;
+            console.log(`✅ Release created: ${tag}`);
+            console.log(`Download: https://github.com/${repo}/releases/tag/${tag}`);
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  notify-failure:
-    name: Notify Failure
-    needs: [build]
-    if: always() && (needs.build.result == 'failure' || needs.build.result == 'cancelled')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get tag name
-        id: tag
-        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1.25.0
-        with:
-          payload: |
-            {
-              "text": "❌ *빌드/배포가 실패했습니다.*\n\n*버전:* ${{ steps.tag.outputs.name }}\n*상태:* ${{ needs.build.result }}\n*확인:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n즉시 확인하고 수정하세요."
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TAG_NAME: ${{ steps.tag.outputs.tag_name }}
+          REPO: ${{ github.repository }}
