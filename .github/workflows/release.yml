@@ -1,16 +1,9 @@
 name: Release APK
 
-# v1.0.0 형태의 태그를 push 하면 자동 실행
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: '릴리즈 태그 (예: v1.0.0)'
-        required: true
-        default: 'v1.0.0'
 
 jobs:
   release:
@@ -18,14 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write # GitHub Release 생성 권한
+      contents: write
 
     steps:
-      - name: Checkout (항상 최신 코드)
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # 모든 히스토리 가져오기
-          ref: main # 항상 메인 브랜치 기준
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -81,11 +71,7 @@ EOF
       - name: Determine tag name
         id: tag
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "name=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+          echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         id: create_release
@@ -114,20 +100,22 @@ EOF
           draft: false
           prerelease: false
 
-      - name: Send Slack Notification
+      - name: Send Slack Notification (on success)
+        if: success()
         uses: slackapi/slack-github-action@v1.25.0
-        if: always() # 항상 실행 (성공/실패 관계없이)
         with:
-          payload: |
-            {
-              "text": "${{ job.status == 'success' && '🚀' || '❌' }} ${{ job.status == 'success' && '새로운 버전이 배포되었습니다!' || '빌드/배포가 실패했습니다.' }}\n\n*버전:* ${{ steps.tag.outputs.name }}\n*상태:* ${{ job.status }}\n*링크:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n${{ job.status == 'success' && format('📥 *다운로드:*\n- ARM64 (권장): {0}/{1}/releases/download/{2}/app-arm64-v8a-release.apk\n- 범용: {0}/{1}/releases/download/{2}/app-release.apk', github.server_url, github.repository, steps.tag.outputs.name) || '자세한 내용은 GitHub Actions 를 확인하세요.' }}"
-            }
+          payload: '{
+            "text": "🚀 새로운 버전이 배포되었습니다!\n\n*버전:* ${{ steps.tag.outputs.name }}\n*다운로드:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.name }}\n\n📥 *APK 다운로드:*\n- ARM64 (권장): ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-arm64-v8a-release.apk\n- 범용: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-release.apk"
+          }'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Retry on Failure
+      - name: Send Slack Notification (on failure)
         if: failure()
-        run: |
-          echo "❌ 빌드 실패 - 로컬에서 수정 후 재시도가 필요합니다."
-          echo "다음 명령으로 자동 재시도:"
-          echo "  .\\deploy-with-retry.ps1"
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: '{
+            "text": "❌ 빌드/배포가 실패했습니다.\n\n*버전:* ${{ steps.tag.outputs.name }}\n*확인:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
