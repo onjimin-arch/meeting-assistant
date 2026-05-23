@@ -117,7 +117,7 @@ EOF
         with:
           payload: |
             {
-              "text": "${{ job.status == 'success' && '🚀' || '❌' }} ${{ job.status == 'success' && '새로운 버전이 배포되었습니다!' || '빌드/배포가 실패했습니다.' }}\n\n*버전:* ${{ steps.tag.outputs.name }}\n*상태:* ${{ job.status }}\n*링크:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n${{ job.status == 'success' && format('다운로드: {0}/{1}/releases/tag/{2}', github.server_url, github.repository, steps.tag.outputs.name) || '자세한 내용은 GitHub Actions 를 확인하세요.' }}"
+              "text": "${{ job.status == 'success' && '🚀' || '❌' }} ${{ job.status == 'success' && '새로운 버전이 배포되었습니다!' || '빌드/배포가 실패했습니다.' }}\n\n*버전:* ${{ steps.tag.outputs.name }}\n*상태:* ${{ job.status }}\n*링크:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n${{ job.status == 'success' && format('📥 *다운로드:*\n- ARM64 (권장): {0}/{1}/releases/download/{2}/app-arm64-v8a-release.apk\n- 범용: {0}/{1}/releases/download/{2}/app-release.apk', github.server_url, github.repository, steps.tag.outputs.name) || '자세한 내용은 GitHub Actions 를 확인하세요.' }}"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
