@@ -16,7 +16,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _tokenController;
   late TextEditingController _pageUrlController;
   late TextEditingController _instructionsController;
-  SttMode _selectedMode = SttMode.realTime;
 
   @override
   void initState() {
@@ -26,7 +25,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _pageUrlController = TextEditingController(text: settings.notionPageUrl ?? '');
     _instructionsController =
         TextEditingController(text: settings.minutesInstructions ?? '');
-    _selectedMode = settings.sttMode;
   }
 
   @override
@@ -85,46 +83,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // STT 모드 섹션
-                    const Text(
-                      '음성 인식 방식',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: Color(0xFF8e8ea0),
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.1,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2f2f2f),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF3e3e3e),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildSttModeRadio(
-                            title: '바로 받아쓰기',
-                            subtitle: '플랫폼 내장 STT, 실시간 자막, 인터넷 필요',
-                            value: SttMode.realTime,
-                          ),
-                          Divider(
-                            height: 1,
-                            color: Colors.grey[900],
-                          ),
-                          _buildSttModeRadio(
-                            title: '파일 저장 후 변환',
-                            subtitle: 'Whisper 로컬, 더 정확, 오프라인 가능',
-                            value: SttMode.fileBased,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     // Notion 연동
                     const Text(
                       'NOTION 연동',
@@ -240,7 +198,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         color: const Color(0xFF1a1a1a),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFF10a37f).withOpacity(0.3),
+                          color: const Color(0xFF10a37f).opacity(0.3),
                         ),
                       ),
                       child: Column(
@@ -364,7 +322,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       child: Column(
                         children: [
-                          _buildInfoRow('STT 엔진', '플랫폼 내장/Whisper', 0),
+                          _buildInfoRow('STT 엔진', '플랫폼 내장 (Google/Apple)', 0),
                           _buildInfoRow('LLM 모델', 'Gemma 4 2B', 1),
                           _buildInfoRow('처리 방식', '온디바이스', 2),
                           _buildInfoRow(
@@ -391,7 +349,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   autoSaveToNotion: settings.autoSaveToNotion,
                                   minutesInstructions:
                                       _instructionsController.text,
-                                  sttMode: _selectedMode,
                                 ),
                               );
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -423,40 +380,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildSttModeRadio({
-    required String title,
-    required String subtitle,
-    required SttMode value,
-  }) {
-    return RadioListTile<SttMode>(
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 13,
-          color: Color(0xFFececec),
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(
-          fontSize: 11,
-          color: Color(0xFF8e8ea0),
-        ),
-      ),
-      value: value,
-      groupValue: _selectedMode,
-      onChanged: (SttMode? newValue) {
-        if (newValue != null) {
-          setState(() {
-            _selectedMode = newValue;
-          });
-        }
-      },
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     );
   }
 

@@ -1,5 +1,5 @@
 name: meeting_assistant
-description: ?온디바이스 AI 기반 회의 자동 기록 & Notion 저장 모바일 앱
+description: 온디바이스 AI 기반 회의 자동 기록 & Notion 저장 모바일 앱
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -33,18 +33,15 @@ dependencies:
   # 설정 저장
   shared_preferences: ^2.2.3
 
-  # 권한 (마이크 등) - UI 흐름 검증에는 사용 안 하지만 추후 실제 녹음에 필요
+  # 권한 (마이크 등)
   permission_handler: ^11.3.1
 
   # 경로 (모델 캐시 위치 등)
   path_provider: ^2.1.3
   path: ^1.9.0
 
-  # 오디오 녹음 (AAC 형식)
-  flutter_sound: ^9.20.0
-
-  # Whisper 로컬 STT
-  whisper_dart: ^0.0.1
+  # 오디오 녹음 (AAC 형식) - flutter_sound 대신 record 사용
+  record: ^5.0.4
 
 dev_dependencies:
   flutter_test:

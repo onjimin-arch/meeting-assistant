@@ -8,21 +8,17 @@ class AppSettingsService {
   static const String _notionPageUrlKey = 'notion_page_url';
   static const String _autoSaveKey = 'auto_save_to_notion';
   static const String _minutesInstructionsKey = 'minutes_instructions';
-  static const String _sttModeKey = 'stt_mode';
 
   /// 설정 로드
   Future<AppSettings> loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final sttModeStr = prefs.getString(_sttModeKey) ?? 'realTime';
-      final sttMode = sttModeStr == 'fileBased' ? SttMode.fileBased : SttMode.realTime;
 
       return AppSettings(
         notionToken: prefs.getString(_notionTokenKey),
         notionPageUrl: prefs.getString(_notionPageUrlKey),
         autoSaveToNotion: prefs.getBool(_autoSaveKey) ?? false,
         minutesInstructions: prefs.getString(_minutesInstructionsKey),
-        sttMode: sttMode,
       );
     } catch (e) {
       debugPrint('[Settings] 설정 로드 실패: $e');
@@ -49,7 +45,6 @@ class AppSettingsService {
           prefs.setString(_minutesInstructionsKey, settings.minutesInstructions!)
         else
           prefs.remove(_minutesInstructionsKey),
-        prefs.setString(_sttModeKey, settings.sttMode == SttMode.fileBased ? 'fileBased' : 'realTime'),
       ]);
 
       debugPrint('[Settings] 설정 저장 완료');
