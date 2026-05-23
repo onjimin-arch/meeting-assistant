@@ -5,17 +5,24 @@ on:
     tags:
       - 'v*'
 
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
 jobs:
-  release:
-    name: Build & Release
+  build:
+    name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: write
-
+    outputs:
+      tag_name: ${{ steps.tag.outputs.name }}
+      success: ${{ steps.success.outputs.status }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get tag name
+        id: tag
+        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -29,58 +36,50 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Restore signing keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/meeting-assistant.jks
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Create key.properties
-        env:
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          cat > android/key.properties <<EOF
-storePassword=$STORE_PASSWORD
-keyPassword=$KEY_PASSWORD
-keyAlias=$KEY_ALIAS
-storeFile=meeting-assistant.jks
-EOF
-
-      - name: Accept Android SDK licenses & install NDK
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;30.0.14904198" > /dev/null 2>&1 || true
-
-      - name: Patch pub-cache plugin compileSdk
-        run: |
-          set +o pipefail
-          flutter pub get
-          find "$HOME/.pub-cache/hosted" -path "*/android/build.gradle*" 2>/dev/null | while read f; do
-            sed -i -E 's#compileSdk[[:space:]]*=[[:space:]]*[0-9]+#compileSdk = 36#g' "$f" 2>/dev/null || true
-            sed -i -E 's#compileSdkVersion[[:space:]]+[0-9]+#compileSdkVersion 36#g' "$f" 2>/dev/null || true
-          done
-
-      - name: Build release APK (universal)
+      - name: Build APK
         run: flutter build apk --release
 
-      - name: Build release APK (split per ABI)
-        run: flutter build apk --release --split-per-abi
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-files
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+          retention-days: 1
 
-      - name: Determine tag name
-        id: tag
-        run: |
-          echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Set success flag
+        id: success
+        if: always()
+        run: echo "status=${{ job.status }}" >> $GITHUB_OUTPUT
+
+  release:
+    name: Create Release
+    needs: [build]
+    if: needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-files
+          path: apk/
 
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.name }}
-          name: "Meeting Assistant ${{ steps.tag.outputs.name }}"
+          tag_name: ${{ needs.build.outputs.tag_name }}
+          name: "Meeting Assistant ${{ needs.build.outputs.tag_name }}"
           body: |
-            ## Meeting Assistant ${{ steps.tag.outputs.name }}
+            ## Meeting Assistant ${{ needs.build.outputs.tag_name }}
 
             ### 설치 방법
             1. 아래 APK 중 하나를 다운로드
@@ -89,33 +88,53 @@ EOF
 
             ### APK 종류
             - `app-release.apk` — 범용 (모든 기기)
-            - `app-arm64-v8a-release.apk` — 64 비트 ARM (최신 기기, 권장)
-            - `app-armeabi-v7a-release.apk` — 32 비트 ARM (구형 기기)
+            - `app-arm64-v8a-release.apk` — 64비트 ARM (최신 기기, 권장)
+            - `app-armeabi-v7a-release.apk` — 32비트 ARM (구형 기기)
             - `app-x86_64-release.apk` — x86 에뮬레이터용
 
             ### 요구사항
             - Android 7.0 (API 24) 이상
             - 저장공간 약 700MB (Gemma 모델 다운로드 포함)
-          files: build/app/outputs/flutter-apk/*.apk
+          files: apk/*.apk
           draft: false
           prerelease: false
 
-      - name: Send Slack Notification (on success)
-        if: success()
+  notify-success:
+    name: Notify Success
+    needs: [build, release]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: tag
+        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
         uses: slackapi/slack-github-action@v1.25.0
         with:
-          payload: '{
-            "text": "🚀 새로운 버전이 배포되었습니다!\n\n*버전:* ${{ steps.tag.outputs.name }}\n*다운로드:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.name }}\n\n📥 *APK 다운로드:*\n- ARM64 (권장): ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-arm64-v8a-release.apk\n- 범용: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-release.apk"
-          }'
+          payload: |
+            {
+              "text": "🚀 *새로운 버전이 배포되었습니다!*\n\n*버전:* ${{ steps.tag.outputs.name }}\n*릴리스:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.name }}\n\n📥 *다운로드:*\n- ARM64 (권장): ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-arm64-v8a-release.apk\n- 범용: ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/app-release.apk"
+            }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Send Slack Notification (on failure)
-        if: failure()
+  notify-failure:
+    name: Notify Failure
+    needs: [build]
+    if: always() && (needs.build.result == 'failure' || needs.build.result == 'cancelled')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get tag name
+        id: tag
+        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
         uses: slackapi/slack-github-action@v1.25.0
         with:
-          payload: '{
-            "text": "❌ 빌드/배포가 실패했습니다.\n\n*버전:* ${{ steps.tag.outputs.name }}\n*확인:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          }'
+          payload: |
+            {
+              "text": "❌ *빌드/배포가 실패했습니다.*\n\n*버전:* ${{ steps.tag.outputs.name }}\n*상태:* ${{ needs.build.result }}\n*확인:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\n즉시 확인하고 수정하세요."
+            }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
