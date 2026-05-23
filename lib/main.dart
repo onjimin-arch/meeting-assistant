@@ -11,6 +11,8 @@ import 'screens/settings_screen.dart';
 import 'services/platform_stt_service.dart';
 import 'services/gemma_inference_service.dart';
 import 'services/notion_sync_service.dart';
+import 'services/audio_recorder_service.dart';
+import 'services/whisper_stt_service.dart';
 
 void main() {
   runApp(
@@ -47,6 +49,8 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   late final PlatformSttService _sttService;
+  late final AudioRecorderService _audioRecorderService;
+  late final WhisperSttService _whisperService;
   late final GemmaInferenceService _gemmaInference;
 
   DateTime? _recordingStartedAt;
@@ -55,6 +59,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     _sttService = PlatformSttService();
+    _audioRecorderService = AudioRecorderService();
+    _whisperService = WhisperSttService();
     _gemmaInference = GemmaInferenceService();
     _sttService.onError = (msg, permanent) {
       if (!mounted) return;
@@ -66,55 +72,69 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
       );
     };
-    // initState에서는 context 사용 불가 — onError는 콜백이므로 mounted 체크로 안전
+  }
+
+  @override
+  void dispose() {
+    _audioRecorderService.close();
+    super.dispose();
   }
 
   Future<void> _startRecording() async {
-    // LLM 모델 준비 확인
-    final llm = ref.read(llmStateProvider);
-    
-    if (llm.status == LlmReadiness.needsDownload) {
-      // 다운로드 필요 시 다이얼로그 표시
-      final shouldDownload = await _showModelDownloadDialog();
-      if (!shouldDownload) return;
-      await _showDownloadProgressDialog();
-      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-    } else if (llm.status == LlmReadiness.loading) {
-      // 로딩 중이면 완료될 때까지 대기 (다이얼로그 없이 또는 로딩 다이얼로그)
-      await _showLoadingProgressDialog();
-      if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-    } else if (llm.status == LlmReadiness.error) {
-      // 에러 시 재시도 또는 다운로드 다이얼로그
-      final shouldRetry = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF2f2f2f),
-          title: const Text('모델 로드 실패', style: TextStyle(color: Color(0xFFececec))),
-          content: Text(
-            '모델 준비 중 오류가 발생했습니다.\n${llm.errorMessage ?? ""}\n\n다시 시도하시겠습니까?',
-            style: const TextStyle(color: Color(0xFFececec)),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('재시도')),
-          ],
-        ),
-      );
-      if (shouldRetry == true) {
-        await _showDownloadProgressDialog(); // 재시도 시 다운로드/로딩 프로세스 재실행
+    final settings = ref.read(appSettingsProvider);
+    final sttMode = settings.sttMode;
+
+    // LLM 모델 준비 확인 (파일 기반 모드일 때만 필요)
+    if (sttMode == SttMode.fileBased) {
+      final llm = ref.read(llmStateProvider);
+
+      if (llm.status == LlmReadiness.needsDownload) {
+        final shouldDownload = await _showModelDownloadDialog();
+        if (!shouldDownload) return;
+        await _showDownloadProgressDialog();
         if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
-      } else {
-        return;
+      } else if (llm.status == LlmReadiness.loading) {
+        await _showLoadingProgressDialog();
+        if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+      } else if (llm.status == LlmReadiness.error) {
+        final shouldRetry = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF2f2f2f),
+            title: const Text('모델 로드 실패', style: TextStyle(color: Color(0xFFececec))),
+            content: Text(
+              '모델 준비 중 오류가 발생했습니다.\n${llm.errorMessage ?? ""}\n\n다시 시도하시겠습니까?',
+              style: const TextStyle(color: Color(0xFFececec)),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('재시도')),
+            ],
+          ),
+        );
+        if (shouldRetry == true) {
+          await _showDownloadProgressDialog();
+          if (ref.read(llmStateProvider).status != LlmReadiness.ready) return;
+        } else {
+          return;
+        }
       }
     }
-    // ready 상태이면 바로 녹음 시작
 
     try {
       _recordingStartedAt = DateTime.now();
-      await _sttService.startListening(localeId: 'ko_KR');
+
+      if (sttMode == SttMode.realTime) {
+        // 기존: 플랫폼 내장 STT
+        await _sttService.startListening(localeId: 'ko_KR');
+      } else {
+        // 추가: 오디오 레코더 (AAC 저장)
+        await _audioRecorderService.startRecording();
+      }
+
       ref.read(recordingStateProvider.notifier).state = RecordingState.recording;
     } catch (e) {
-      debugPrint('STT 시작 실패: $e');
+      debugPrint('녹음 시작 실패: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('녹음을 시작할 수 없습니다: $e')),
@@ -134,7 +154,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           style: TextStyle(color: Color(0xFFececec)),
         ),
         content: const Text(
-          '회의록을 자동 생성하려면 AI 모델(약 530MB)을 한 번만 다운로드해야 합니다.\n\n'
+          '회의록을 자동 생성하려면 AI 모델 (약 530MB) 을 한 번만 다운로드해야 합니다.\n\n'
           'Wi-Fi 연결을 권장합니다. 다운로드 후엔 인터넷 없이도 동작합니다.',
           style: TextStyle(color: Color(0xFFececec), fontSize: 13),
         ),
@@ -148,7 +168,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             child: const Text(
               '다운로드',
               style: TextStyle(
-                  color: Color(0xFF10a37f), fontWeight: FontWeight.w600),
+                color: Color(0xFF10a37f), fontWeight: FontWeight.w600),
             ),
           ),
         ],
@@ -158,7 +178,6 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Future<void> _showDownloadProgressDialog() async {
-    // 다운로드 시작
     ref.read(llmStateProvider.notifier).downloadAndLoad();
 
     await showDialog<void>(
@@ -167,9 +186,8 @@ class _AppShellState extends ConsumerState<AppShell> {
       builder: (dialogContext) => Consumer(
         builder: (context, ref, _) {
           final state = ref.watch(llmStateProvider);
-          // ready/error가 되면 자동으로 닫음
           if (state.status == LlmReadiness.ready ||
-              state.status == LlmReadiness.error) {
+          state.status == LlmReadiness.error) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (Navigator.canPop(dialogContext)) {
                 Navigator.pop(dialogContext);
@@ -180,8 +198,8 @@ class _AppShellState extends ConsumerState<AppShell> {
             backgroundColor: const Color(0xFF2f2f2f),
             title: Text(
               state.status == LlmReadiness.loading
-                  ? '모델 로딩 중...'
-                  : '모델 다운로드 중',
+                ? '모델 로딩 중...'
+                : '모델 다운로드 중',
               style: const TextStyle(color: Color(0xFFececec)),
             ),
             content: Column(
@@ -189,19 +207,19 @@ class _AppShellState extends ConsumerState<AppShell> {
               children: [
                 LinearProgressIndicator(
                   value: state.status == LlmReadiness.loading
-                      ? null
-                      : state.downloadProgress,
+                    ? null
+                    : state.downloadProgress,
                   backgroundColor: const Color(0xFF1a1a1a),
                   valueColor: const AlwaysStoppedAnimation(Color(0xFF10a37f)),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   state.status == LlmReadiness.loading
-                      ? '다운로드 완료. 모델을 메모리에 적재 중입니다.'
-                      : '${(state.downloadProgress * 100).toStringAsFixed(1)}%  '
-                          '(${_fmtMB(state.downloadedBytes)} / ${_fmtMB(state.totalBytes)})',
+                    ? '다운로드 완료. 모델을 메모리에 적재 중입니다.'
+                    : '${(state.downloadProgress * 100).toStringAsFixed(1)}% '
+                    '(${_fmtMB(state.downloadedBytes)} / ${_fmtMB(state.totalBytes)})',
                   style: const TextStyle(
-                      color: Color(0xFF8e8ea0), fontSize: 12),
+                    color: Color(0xFF8e8ea0), fontSize: 12),
                 ),
               ],
             ),
@@ -210,7 +228,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       ),
     );
 
-    // 다운로드 결과에 따라 사용자에게 알림
     final finalState = ref.read(llmStateProvider);
     if (finalState.status == LlmReadiness.error && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -231,7 +248,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         builder: (context, ref, _) {
           final state = ref.watch(llmStateProvider);
           if (state.status == LlmReadiness.ready ||
-              state.status == LlmReadiness.error) {
+          state.status == LlmReadiness.error) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (Navigator.canPop(dialogContext)) {
                 Navigator.pop(dialogContext);
@@ -270,7 +287,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   String _fmtMB(int bytes) =>
-      '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
+  '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
   String _sttErrorLabel(String errorMsg) {
     switch (errorMsg) {
@@ -285,9 +302,30 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Future<void> _stopRecordingAndProcess() async {
-    final transcript = await _sttService.stopListening();
-    final duration = DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
-    await _processTranscript(transcript, duration.inSeconds);
+    final settings = ref.read(appSettingsProvider);
+    final sttMode = settings.sttMode;
+
+    String transcript;
+    int durationSeconds;
+
+    if (sttMode == SttMode.realTime) {
+      // 기존: 플랫폼 STT
+      transcript = await _sttService.stopListening();
+      durationSeconds = DateTime.now().difference(_recordingStartedAt ?? DateTime.now()).inSeconds;
+    } else {
+      // 추가: 오디오 저장 → Whisper 로컬 변환
+      final audioPath = await _audioRecorderService.stopRecording();
+      durationSeconds = DateTime.now().difference(_recordingStartedAt ?? DateTime.now()).inSeconds;
+      
+      try {
+        transcript = await _whisperService.transcribe(audioPath!);
+      } catch (e) {
+        debugPrint('Whisper 변환 실패: $e');
+        transcript = '(변환 실패: ${e.toString()})';
+      }
+    }
+
+    await _processTranscript(transcript, durationSeconds);
   }
 
   Future<void> _processTranscript(String transcript, int durationSeconds) async {
@@ -402,7 +440,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         autoSave: settings.autoSaveToNotion,
       );
     } else if (recordingState == RecordingState.completed &&
-        currentMeeting != null) {
+    currentMeeting != null) {
       return MinutesScreen(
         meeting: currentMeeting,
         onBack: () {
@@ -426,7 +464,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           debugPrint('[NAV] onSelectMeeting: ${meeting.title}');
           ref.read(currentMeetingProvider.notifier).state = meeting;
           ref.read(recordingStateProvider.notifier).state =
-              RecordingState.completed;
+          RecordingState.completed;
         },
         onSettings: () => _showSettingsScreen(context),
       ),

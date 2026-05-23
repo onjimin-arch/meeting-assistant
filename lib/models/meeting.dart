@@ -122,6 +122,12 @@ class ChatMessage {
   });
 }
 
+/// STT 모드
+enum SttMode {
+  realTime, // 기존: 플랫폼 내장 STT (실시간 받아쓰기)
+  fileBased, // 추가: 파일 저장 후 Whisper 로컬 변환
+}
+
 /// 앱 설정 모델
 class AppSettings {
   /// Notion API 토큰
@@ -136,11 +142,15 @@ class AppSettings {
   /// 회의록 작성 지침
   final String? minutesInstructions;
 
+  /// STT 모드
+  final SttMode sttMode;
+
   AppSettings({
     this.notionToken,
     this.notionPageUrl,
     this.autoSaveToNotion = false,
     this.minutesInstructions,
+    this.sttMode = SttMode.realTime,
   });
 
   AppSettings copyWith({
@@ -148,21 +158,29 @@ class AppSettings {
     String? notionPageUrl,
     bool? autoSaveToNotion,
     String? minutesInstructions,
+    SttMode? sttMode,
   }) {
     return AppSettings(
       notionToken: notionToken ?? this.notionToken,
       notionPageUrl: notionPageUrl ?? this.notionPageUrl,
       autoSaveToNotion: autoSaveToNotion ?? this.autoSaveToNotion,
       minutesInstructions: minutesInstructions ?? this.minutesInstructions,
+      sttMode: sttMode ?? this.sttMode,
     );
   }
 }
 
 /// 녹음 상태 enum
 enum RecordingState {
-  idle,         // 초기 상태
-  recording,    // 녹음 중
-  processing,   // 처리 중 (STT, Gemma)
-  completed,    // 완료
-  error,        // 에러
+  idle, // 초기 상태
+  recording, // 녹음 중
+  processing, // 처리 중 (STT, Gemma)
+  completed, // 완료
+  error, // 에러
+}
+
+/// STT 모드 enum
+enum SttMode {
+  realTime, // 기존: 플랫폼 내장 STT (실시간 받아쓰기)
+  fileBased, // 추가: 파일 저장 후 Whisper 로컬 변환
 }

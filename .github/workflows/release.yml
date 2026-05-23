@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write   # GitHub Release 생성 권한
+      contents: write # GitHub Release 생성 권한
 
     steps:
       - name: Checkout
@@ -49,11 +49,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           cat > android/key.properties <<EOF
-          storePassword=$STORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=meeting-assistant.jks
-          EOF
+      storePassword=$STORE_PASSWORD
+      keyPassword=$KEY_PASSWORD
+      keyAlias=$KEY_ALIAS
+      storeFile=meeting-assistant.jks
+      EOF
 
       - name: Accept Android SDK licenses & install NDK
         run: |
@@ -85,6 +85,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
@@ -109,3 +110,13 @@ jobs:
           files: build/app/outputs/flutter-apk/*.apk
           draft: false
           prerelease: false
+
+      - name: Send Slack Notification
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          payload: |
+            {
+              "text": "🚀 새로운 버전이 배포되었습니다!\n\n*버전:* ${{ steps.tag.outputs.name }}\n*다운로드:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.tag.outputs.name }}\n\nAPK 를 다운로드하여 설치하세요."
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
