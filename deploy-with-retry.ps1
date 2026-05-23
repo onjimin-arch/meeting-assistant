@@ -172,16 +172,21 @@ function Deploy-WithRetry {
             
             # 3. 태그 생성 (버전 자동 증가)
             if ([string]::IsNullOrEmpty($Tag)) {
-                $existingTags = git tag --list "v*" | Sort-Object -Descending
+                $existingTags = git tag --list "v*"
                 if ($existingTags) {
-                    $latestTag = $existingTags[0]
-                    $versionParts = $latestTag.TrimStart('v').Split('.')
-                    if ($versionParts.Count -ge 3) {
-                        $major = [int]$versionParts[0]
-                        $minor = [int]$versionParts[1]
-                        $patch = [int]$versionParts[2]
-                        $patch++
-                        $newTag = "v$major.$minor.$patch"
+                    $latestTag = $existingTags | Sort-Object -Descending | Select-Object -First 1
+                    if ($latestTag) {
+                        $versionStr = $latestTag -replace '^v', ''
+                        $versionParts = $versionStr.Split('.')
+                        if ($versionParts.Count -ge 3) {
+                            $major = [int]$versionParts[0]
+                            $minor = [int]$versionParts[1]
+                            $patch = [int]$versionParts[2]
+                            $patch++
+                            $newTag = "v$major.$minor.$patch"
+                        } else {
+                            $newTag = "v1.0.0"
+                        }
                     } else {
                         $newTag = "v1.0.0"
                     }
