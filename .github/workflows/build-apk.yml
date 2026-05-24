@@ -50,14 +50,18 @@ jobs:
         id: build
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_SECRET_API }}
-        run: flutter build apk --debug --dart-define=NOTION_TOKEN=$NOTION_TOKEN 2>&1 | tee build_output.txt
+        run: |
+          set -o pipefail
+          flutter build apk --debug --dart-define=NOTION_TOKEN=$NOTION_TOKEN 2>&1 | tee build_output.txt
+          ls build/app/outputs/flutter-apk/
 
       - name: Upload APK artifact
-        if: success()
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: meeting-assistant-debug-${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
           retention-days: 14
 
       - name: Slack — 빌드 성공
