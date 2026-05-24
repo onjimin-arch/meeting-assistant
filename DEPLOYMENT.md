@@ -195,6 +195,40 @@ https://github.com/onjimin-arch/meeting-assistant/actions
 
 ---
 
+## ⚙️ Android 빌드 버전 규칙
+
+### 현재 고정 버전 (변경 금지)
+
+| 항목 | 고정 버전 | 파일 |
+|------|----------|------|
+| Kotlin | `2.1.0` | `android/settings.gradle.kts` |
+| AGP (Android Gradle Plugin) | `8.5.2` | `android/settings.gradle.kts` |
+| Gradle Wrapper | `8.10.2` | `android/gradle/wrapper/gradle-wrapper.properties` |
+
+이 조합은 Flutter 3.29 공식 템플릿 기준으로 검증된 버전입니다.
+
+### 버전 변경 시 규칙
+
+1. **존재 확인 필수**: 변경 전 반드시 해당 버전이 실제 릴리즈됐는지 확인
+   - Kotlin: https://kotlinlang.org/docs/releases.html
+   - AGP: https://developer.android.com/build/releases/gradle-plugin
+   - Gradle: https://gradle.org/releases/
+
+2. **Flutter 템플릿 기준 사용**: `flutter create`가 생성하는 버전과 동일한 조합 사용
+   - 환경(회사PC / 집PC / Claude)마다 다른 버전 설정 절대 금지
+
+3. **세 값을 함께 변경**: Kotlin / AGP / Gradle은 항상 호환 가능한 조합으로 같이 변경
+
+4. **변경 이유 기록**: DEPLOYMENT.md 릴리즈 이력에 버전 변경 사유 명시
+
+### 발생했던 문제 (재발 방지)
+
+- Kotlin `2.3.20` (미존재 버전) 설정 → 의존성 해석 실패로 빌드 오류
+- AGP `9.0.1` → Flutter Gradle 플러그인이 AGP 9.0 신규 DSL 미지원
+- 원인: 멀티 환경(회사PC / 집PC / Claude) 혼용으로 검증되지 않은 버전 혼입
+
+---
+
 ## 📞 문제 해결
 
 ### 빌드 실패
