@@ -43,16 +43,19 @@ jobs:
       - name: Accept Android licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>/dev/null || true
 
+      - name: flutter pub get
+        run: flutter pub get
+
       - name: Patch plugin compileSdk
         run: |
           find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
-            if grep -q 'compileSdk' "$f"; then
-              sed -i 's/compileSdk [0-9]*/compileSdk 35/' "$f"
-            fi
+            sed -i \
+              -e 's/compileSdkVersion [0-9]*/compileSdk 35/g' \
+              -e 's/compileSdk [0-9][0-9]*/compileSdk 35/g' \
+              -e 's/targetSdkVersion \([0-9]*\)/targetSdk \1/g' \
+              -e 's/minSdkVersion \([0-9]*\)/minSdk \1/g' \
+              "$f"
           done
-
-      - name: flutter pub get
-        run: flutter pub get
 
       - name: flutter analyze (non-blocking)
         run: flutter analyze --no-fatal-infos || true
