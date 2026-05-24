@@ -43,5 +43,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.2
 
+# record_platform_interface 1.6.0 이 startStream / hasPermission 시그니처 변경 →
+# record_linux 0.7.2 가 미구현 → Dart 컴파일 에러.
+# record_linux 가 업데이트될 때까지 1.5.x 로 고정.
+dependency_overrides:
+  record_platform_interface: '>=1.5.0 <1.6.0'
+
 flutter:
   uses-material-design: true
