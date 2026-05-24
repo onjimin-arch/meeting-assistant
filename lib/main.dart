@@ -10,6 +10,7 @@ import 'screens/minutes_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/audio_recorder_service.dart';
+import 'services/platform_stt_service.dart';
 import 'services/whisper_api_service.dart';
 import 'services/gemma_inference_service.dart';
 import 'services/openai_llm_service.dart';
@@ -50,6 +51,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   late final AudioRecorderService _audioRecorder;
+  late final PlatformSttService _platformStt;
   late final GemmaInferenceService _gemmaInference;
 
   DateTime? _recordingStartedAt;
@@ -58,6 +60,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     _audioRecorder = AudioRecorderService();
+    _platformStt = PlatformSttService();
     _gemmaInference = GemmaInferenceService();
   }
 
@@ -103,7 +106,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     try {
       _recordingStartedAt = DateTime.now();
-      await _audioRecorder.startRecording();
+      final settings = ref.read(appSettingsProvider);
+      if (settings.useWhisperStt) {
+        await _audioRecorder.startRecording();
+      } else {
+        await _platformStt.startListening();
+      }
       ref.read(recordingStateProvider.notifier).state = RecordingState.recording;
     } catch (e) {
       debugPrint('녹음 시작 실패: $e');
@@ -262,23 +270,14 @@ class _AppShellState extends ConsumerState<AppShell> {
   '${(bytes / 1024 / 1024).toStringAsFixed(1)}MB';
 
   Future<void> _stopRecordingAndProcess() async {
-    final audioPath = await _audioRecorder.stopRecording();
+    final settings = ref.read(appSettingsProvider);
     final duration =
         DateTime.now().difference(_recordingStartedAt ?? DateTime.now());
 
-    if (audioPath == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('녹음 파일이 없습니다.')),
-        );
-      }
-      return;
-    }
-
-    final settings = ref.read(appSettingsProvider);
-    final apiKey = settings.openaiApiKey;
-
-    if (apiKey == null || apiKey.isEmpty) {
+    // API 키가 필요한 경우만 체크
+    final needsApiKey = settings.useWhisperStt || settings.useCloudLlm;
+    if (needsApiKey &&
+        (settings.openaiApiKey == null || settings.openaiApiKey!.isEmpty)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -293,16 +292,30 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.read(processingStepProvider.notifier).state = 0;
 
     try {
-      final transcript = await WhisperApiService.transcribe(
-        audioPath: audioPath,
-        apiKey: apiKey,
-      );
-      try {
-        await File(audioPath).delete();
-      } catch (_) {}
+      String transcript;
+      if (settings.useWhisperStt) {
+        final audioPath = await _audioRecorder.stopRecording();
+        if (audioPath == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('녹음 파일이 없습니다.')),
+            );
+          }
+          ref.read(recordingStateProvider.notifier).state = RecordingState.error;
+          return;
+        }
+        transcript = await WhisperApiService.transcribe(
+          audioPath: audioPath,
+          apiKey: settings.openaiApiKey!,
+        );
+        try { await File(audioPath).delete(); } catch (_) {}
+      } else {
+        transcript = await _platformStt.stopListening();
+      }
+
       await _processTranscript(transcript, duration.inSeconds);
     } catch (e) {
-      debugPrint('Whisper API 실패: $e');
+      debugPrint('STT 실패: $e');
       ref.read(recordingStateProvider.notifier).state = RecordingState.error;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -56,9 +56,11 @@ jobs:
 
       - name: Build Release APK
         id: build
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_SECRET_API }}
         run: |
           set -o pipefail
-          flutter build apk --release --split-per-abi 2>&1 | tee build_output.txt
+          flutter build apk --release --split-per-abi --dart-define=NOTION_TOKEN=$NOTION_TOKEN 2>&1 | tee build_output.txt
           ls build/app/outputs/flutter-apk/
 
       - name: Create GitHub Release

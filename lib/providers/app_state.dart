@@ -53,6 +53,11 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
     final updated = state.copyWith(useCloudLlm: value);
     await updateSettings(updated);
   }
+
+  Future<void> toggleWhisperStt(bool value) async {
+    final updated = state.copyWith(useWhisperStt: value);
+    await updateSettings(updated);
+  }
 }
 
 /// LLM 모델 준비 상태

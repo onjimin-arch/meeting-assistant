@@ -121,6 +121,9 @@ class AppSettings {
   /// 회의록 생성 엔진: true = OpenAI GPT, false = 온디바이스 Gemma
   final bool useCloudLlm;
 
+  /// STT 엔진: true = OpenAI Whisper API, false = 플랫폼 내장 STT
+  final bool useWhisperStt;
+
   AppSettings({
     this.notionToken,
     this.notionPageUrl,
@@ -128,6 +131,7 @@ class AppSettings {
     this.minutesInstructions,
     this.openaiApiKey,
     this.useCloudLlm = false,
+    this.useWhisperStt = true,
   });
 
   AppSettings copyWith({
@@ -137,6 +141,7 @@ class AppSettings {
     String? minutesInstructions,
     String? openaiApiKey,
     bool? useCloudLlm,
+    bool? useWhisperStt,
   }) {
     return AppSettings(
       notionToken: notionToken ?? this.notionToken,
@@ -145,6 +150,7 @@ class AppSettings {
       minutesInstructions: minutesInstructions ?? this.minutesInstructions,
       openaiApiKey: openaiApiKey ?? this.openaiApiKey,
       useCloudLlm: useCloudLlm ?? this.useCloudLlm,
+      useWhisperStt: useWhisperStt ?? this.useWhisperStt,
     );
   }
 }
