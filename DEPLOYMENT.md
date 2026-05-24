@@ -1,7 +1,7 @@
 # Meeting Assistant - 개발 완료 및 배포 가이드
 
 최종 업데이트: 2026-05-24  
-상태: ✅ 개발 완료 → 🚀 배포 준비 완료
+상태: ✅ 개발 완료 → 🚀 배포 중 (최신 릴리즈: v2.5.0)
 
 ---
 
@@ -14,20 +14,24 @@
 - [x] Git 커밋 및 GitHub Push 완료
 
 ### 2. 아키텍처 명확화 ✅
-- **STT**: OpenAI Whisper API (클라우드)
-- **LLM**: 
-  - OpenAI GPT-4o-mini (클라우드) - `useCloudLlm = true`
-  - Gemma 3 1B Instruct (온디바이스) - `useCloudLlm = false`
+- **STT**: 사용자 선택 가능 (`useWhisperStt`)
+  - OpenAI Whisper API (클라우드, 정확도 우선) — 기본값
+  - 플랫폼 내장 STT (Android/iOS 내장, 오프라인/무료)
+- **LLM**: 사용자 선택 가능 (`useCloudLlm`)
+  - OpenAI GPT-4o-mini (클라우드) — `useCloudLlm = true`
+  - Gemma 3 1B Instruct (온디바이스) — `useCloudLlm = false`
 - **오디오 녹음**: AAC-LC, 128kbps, 44.1kHz
 - **Notion 연동**: REST API v1 (마크다운 블록 변환)
+- **Notion 토큰**: GitHub Secret(`NOTION_SECRET_API`) → `--dart-define` 빌드 시 주입
 
 ### 3. 구현된 핵심 서비스 ✅
 - [x] `AudioRecorderService` - AAC 오디오 녹음
 - [x] `WhisperApiService` - OpenAI Whisper API (음성 → 텍스트)
+- [x] `PlatformSttService` - 플랫폼 내장 STT (Android/iOS, 세션 자동 재시작)
 - [x] `OpenAiLlmService` - OpenAI GPT (회의록/채팅)
 - [x] `GemmaInferenceService` - Gemma 온디바이스 (회의록/채팅)
 - [x] `NotionSyncService` - Notion API 연동
-- [x] `AppSettingsService` - 설정 영속화
+- [x] `AppSettingsService` - 설정 영속화 (`useWhisperStt`, `useCloudLlm` 포함)
 - [x] `MeetingRepository` - 회의 목록 관리
 
 ### 4. 구현된 UI 화면 ✅
@@ -36,14 +40,14 @@
 - [x] `ProcessingScreen` - 단계별 진행 표시
 - [x] `MinutesScreen` - 회의록/스크립트 탭
 - [x] `ChatScreen` - 추가 작업 채팅
-- [x] `SettingsScreen` - OpenAI/Notion 설정, LLM 선택
+- [x] `SettingsScreen` - STT 엔진 / LLM 엔진 토글, Notion 토큰 고정 표시
 
 ### 5. CI/CD 설정 ✅
-- [x] `.github/workflows/build-apk.yml` - 디버그 빌드 (PR/push)
-- [x] `.github/workflows/release.yml` - 릴리즈 빌드 (v* 태그)
+- [x] `.github/workflows/build-apk.yml` - 디버그 빌드 (PR/push) + NOTION_TOKEN 주입
+- [x] `.github/workflows/release.yml` - 릴리즈 빌드 (v* 태그) + NOTION_TOKEN 주입
 - [x] `scripts/deploy.sh` - 로컬 배포 스크립트
 - [x] `scripts/monitor-ci.sh` - CI 모니터링
-- [x] Slack 연동 (빌드 성공/실패 알림)
+- [x] Slack 연동 (빌드 성공/실패 알림, releases 페이지 링크)
 
 ---
 
@@ -144,26 +148,31 @@ https://github.com/onjimin-arch/meeting-assistant/actions
 2. API 키 복사
 3. 앱 실행 → 설정 → OpenAI API 키 입력
 
-### 2. LLM 엔진 선택
+### 2. STT 엔진 선택
+- **OpenAI Whisper API** (기본): 정확도 높음, API 키 필요, 인터넷 필요
+- **플랫폼 내장 STT**: 무료, 오프라인 동작, API 키 불필요
+
+### 3. LLM 엔진 선택
 - **OpenAI GPT**: 빠른 처리, 정확한 결과, API 키 필요
 - **Gemma 온디바이스**: 오프라인 동작, 첫 사용 시 다운로드
 
-### 3. Notion 연동
-1. https://www.notion.so/my-integrations
-2. Integration 생성 → 토큰 복사
-3. 앱 설정 → API 토큰 + 페이지 URL 입력
+### 4. Notion 연동
+- API 토큰: 앱에 사전 설정됨 (설정 화면에서 `xxxxxxxxxxx`로 표시)
+- 저장 페이지 URL만 입력 필요
+- 저장할 Notion 페이지에서 `…` → `연결` → `AX Bot` 추가 필수
 
 ---
 
-## 📊 Git 커밋 이력
+## 📊 릴리즈 이력
 
-```
-679a31b docs: 아키텍처 문서 통합 (ARCHITECTURE.md 삭제) 및 OpenAI/Gemma 하이브리드 아키텍처 반영
-7663ee5 fix: Meeting 클래스 복구 (useCloudLlm 추가 시 실수로 삭제됨)
-ba0eb0f fix: pub-cache 패치 제거 (sed가 compileSdk = 36 형식 깨뜨리는 버그)
-5b46789 fix: compileSdk 34→35 업그레이드 + 릴리즈 빌드 단순화
-e3c8b1d fix: 릴리즈 빌드 실패 원인 수정 (compileSdk 패치 누락 + pipefail)
-```
+| 버전 | 주요 변경 내용 |
+|------|--------------|
+| v2.5.0 | STT 엔진 선택 추가, Notion 토큰 빌드 시 주입(GitHub Secret), Slack 링크 수정 |
+| v2.4.0 | LLM 엔진 선택 (OpenAI GPT / Gemma 온디바이스) |
+| v2.3.0 | OpenAI Whisper API STT 통합 |
+| v2.2.0 | 릴리즈 APK arm64-v8a 수정, Slack 알림 개선 |
+| v2.1.0 | CI 모니터링 & Slack 연동 |
+| v2.0.0 | GitHub Actions CI/CD 파이프라인 구축 |
 
 ---
 
@@ -206,5 +215,5 @@ e3c8b1d fix: 릴리즈 빌드 실패 원인 수정 (compileSdk 패치 누락 + p
 ---
 
 **마지막 업데이트**: 2026 년 5 월 24 일  
-**버전**: 1.0.0  
-**상태**: 🟢 개발 완료 → 🚀 배포 준비 완료
+**최신 릴리즈**: v2.5.0  
+**상태**: 🟢 개발 완료 → 🚀 배포 중

@@ -5,7 +5,7 @@ AI 기반 회의 자동 기록 & Notion 저장 모바일 앱
 ## 🎯 프로젝트 목표
 
 - **음성 녹음**: 실시간 마이크 녹음 (AAC-LC, 128kbps, 44.1kHz)
-- **AI 변환**: OpenAI Whisper API 로 음성 → 텍스트 변환 (클라우드, 한국어 최적화)
+- **AI 변환**: OpenAI Whisper API 또는 플랫폼 내장 STT 선택 가능
 - **회의록 생성**: OpenAI GPT 또는 Gemma 온디바이스 LLM 선택 가능
 - **Notion 연동**: 생성된 회의록을 Notion 페이지에 저장
 - **추가 작업**: 채팅 기반으로 액션아이템 추출, 영문 요약 등 요청
@@ -20,7 +20,7 @@ AI 기반 회의 자동 기록 & Notion 저장 모바일 앱
 | **LLM 엔진 선택** | 설정에서 OpenAI GPT(클라우드) 또는 Gemma(온디바이스) 선택 가능 |
 | **Notion 저장** | 수동 또는 자동 (설정에서 토글 가능) |
 | **추가 작업 채팅** | 액션아이템 추출, 영문 요약, 임원 보고용 재작성 등 |
-| **설정 관리** | OpenAI API 키, Notion 토큰, LLM 엔진 선택, 자동 저장 옵션 |
+| **설정 관리** | OpenAI API 키, STT 엔진 선택, LLM 엔진 선택, Notion 페이지 URL, 자동 저장 옵션 |
 
 ## 🛠️ 기술 스택
 
@@ -117,30 +117,24 @@ flutter run -v
 2. **OpenAI API 키** 입력
 3. 저장
 
-### 2. LLM 엔진 선택
+### 2. STT 엔진 선택
 
-1. 설정 화면 → **LLM 엔진 선택**
-2. 다음 중 선택:
-   - **OpenAI GPT (클라우드)**: 정확한 회의록, API 키 필요
-   - **Gemma 온디바이스**: 오프라인 동작, 첫 사용 시 모델 다운로드 (~530MB)
-3. 선택 시 즉시 적용
+설정 화면 → **STT 엔진** 토글:
+- **OpenAI Whisper API** (기본): 정확도 높음, API 키 필요, 인터넷 필요
+- **플랫폼 내장 STT**: Android/iOS 기본 엔진, 무료, 오프라인 동작
 
-### 3. Notion 연동
+### 3. LLM 엔진 선택
 
-1. **Notion Integration 생성**
-   - https://www.notion.so/my-integrations
-   - "새 통합" 클릭 → 이름 설정 → 생성
+설정 화면 → **회의록 & 채팅 AI 엔진** 토글:
+- **OpenAI GPT (클라우드)**: 정확한 회의록, API 키 필요
+- **Gemma 온디바이스**: 오프라인 동작, 첫 사용 시 모델 다운로드 (~530MB)
 
-2. **API 토큰 복사**
-   - Integration 페이지에서 "Internal Integration Token" 복사
+### 4. Notion 연동
 
-3. **저장 페이지 URL 복사**
-   - Notion에서 저장할 페이지 → URL 복사
-
-4. **앱 설정 화면에서 입력**
-   - Settings 화면 → API 토큰 + 페이지 URL 입력
-   - "회의록 완성 시 자동 저장" 토글 (선택)
-   - "저장" 버튼 클릭
+1. Notion에서 저장할 페이지 열기
+2. 우상단 `…` → `연결` → `AX Bot` 추가
+3. 앱 설정 → **노션 페이지 URL** 입력 후 저장
+   - API 토큰은 앱에 사전 설정되어 있음 (`xxxxxxxxxxx` 표시)
 
 ## 🎨 UI 화면
 
@@ -173,12 +167,12 @@ flutter run -v
 
 ### 6. Settings Screen
 - OpenAI API 키 입력
-- LLM 엔진 선택 (GPT/Gemma)
-- Notion API 토큰 입력
-- 저장 페이지 URL 입력
+- STT 엔진 선택 (Whisper API / 플랫폼 내장)
+- LLM 엔진 선택 (GPT / Gemma)
+- Notion API 토큰 (사전 설정, `xxxxxxxxxxx` 표시)
+- 저장 페이지 URL 입력 + AX Bot 연결 가이드
 - 자동 저장 토글
 - 회의록 작성 지침 입력
-- 모델 정보/캐시 관리 (Gemma)
 
 ## 📊 워크플로우
 
@@ -282,11 +276,12 @@ meeting-assistant/
 // 앱 설정
 appSettingsProvider
 ├─ openaiApiKey: String?
-├─ notionToken: String?
+├─ notionToken: String?        // 빌드 시 주입 (NOTION_SECRET_API)
 ├─ notionPageUrl: String?
 ├─ autoSaveToNotion: bool
 ├─ minutesInstructions: String?
-└─ useCloudLlm: bool  // true=GPT, false=Gemma
+├─ useCloudLlm: bool           // true=GPT, false=Gemma
+└─ useWhisperStt: bool         // true=Whisper API, false=플랫폼 STT
 
 // 녹음 상태
 recordingStateProvider: RecordingState
@@ -370,7 +365,7 @@ MIT License
 ## 👨‍💻 개발자 정보
 
 - **프로젝트**: Meeting Assistant
-- **버전**: 1.0.0
+- **버전**: 2.5.0
 - **플랫폼**: Flutter (Android + iOS)
 - **마지막 업데이트**: 2026 년 5 월 24 일
 
@@ -385,4 +380,4 @@ MIT License
 
 ---
 
-**상태**: 🟢 UI 화면 구현 완료 + 🟢 Whisper/OpenAI/Gemma 통합 완료 → 🟡 Notion 연동 구현 중
+**상태**: 🟢 전체 기능 구현 완료 → 🚀 v2.5.0 배포 중
