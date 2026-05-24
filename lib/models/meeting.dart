@@ -1,3 +1,88 @@
+/// 회의 데이터 모델
+class Meeting {
+  final String id;
+  final String title;
+  final DateTime dateTime;
+  final int duration;
+  final String transcript;
+  final String minutes;
+  final String audioPath;
+  final String? instructions;
+  final DateTime createdAt;
+  final String? notionPageId;
+  final bool notionSaved;
+
+  Meeting({
+    required this.id,
+    required this.title,
+    required this.dateTime,
+    required this.duration,
+    required this.transcript,
+    required this.minutes,
+    required this.audioPath,
+    this.instructions,
+    required this.createdAt,
+    this.notionPageId,
+    this.notionSaved = false,
+  });
+
+  Meeting copyWith({
+    String? id,
+    String? title,
+    DateTime? dateTime,
+    int? duration,
+    String? transcript,
+    String? minutes,
+    String? audioPath,
+    String? instructions,
+    DateTime? createdAt,
+    String? notionPageId,
+    bool? notionSaved,
+  }) {
+    return Meeting(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      dateTime: dateTime ?? this.dateTime,
+      duration: duration ?? this.duration,
+      transcript: transcript ?? this.transcript,
+      minutes: minutes ?? this.minutes,
+      audioPath: audioPath ?? this.audioPath,
+      instructions: instructions ?? this.instructions,
+      createdAt: createdAt ?? this.createdAt,
+      notionPageId: notionPageId ?? this.notionPageId,
+      notionSaved: notionSaved ?? this.notionSaved,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'dateTime': dateTime.toIso8601String(),
+        'duration': duration,
+        'transcript': transcript,
+        'minutes': minutes,
+        'audioPath': audioPath,
+        'instructions': instructions,
+        'createdAt': createdAt.toIso8601String(),
+        'notionPageId': notionPageId,
+        'notionSaved': notionSaved,
+      };
+
+  factory Meeting.fromJson(Map<String, dynamic> json) => Meeting(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        dateTime: DateTime.parse(json['dateTime'] as String),
+        duration: json['duration'] as int,
+        transcript: json['transcript'] as String,
+        minutes: json['minutes'] as String,
+        audioPath: json['audioPath'] as String? ?? '',
+        instructions: json['instructions'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        notionPageId: json['notionPageId'] as String?,
+        notionSaved: json['notionSaved'] as bool? ?? false,
+      );
+}
+
 /// 채팅 메시지 모델
 class ChatMessage {
   /// 역할: 'user' 또는 'assistant'
