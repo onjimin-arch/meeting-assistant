@@ -51,24 +51,8 @@ jobs:
       - name: flutter pub get
         run: flutter pub get
 
-      - name: Patch plugin compileSdk
-        run: |
-          find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
-            if grep -q 'compileSdk' "$f"; then
-              sed -i 's/compileSdk [0-9]*/compileSdk 35/' "$f"
-            fi
-          done
-
       - name: flutter clean
         run: flutter clean && flutter pub get
-
-      - name: Patch plugin compileSdk (after clean)
-        run: |
-          find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
-            if grep -q 'compileSdk' "$f"; then
-              sed -i 's/compileSdk [0-9]*/compileSdk 35/' "$f"
-            fi
-          done
 
       - name: Build Release APK
         id: build
