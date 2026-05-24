@@ -20,9 +20,6 @@ dependencies:
   # STT: 플랫폼 내장 음성 인식 (레거시)
   speech_to_text: ^7.0.0
 
-  # LLM: 온디바이스 Gemma 추론
-  flutter_gemma: ^0.10.0
-
   # Notion API / 모델 다운로드
   http: ^1.2.1
   crypto: ^3.0.3
