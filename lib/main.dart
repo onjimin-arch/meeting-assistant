@@ -106,7 +106,6 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     try {
       _recordingStartedAt = DateTime.now();
-      final settings = ref.read(appSettingsProvider);
       if (settings.useWhisperStt) {
         await _audioRecorder.startRecording();
       } else {
