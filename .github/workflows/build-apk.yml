@@ -68,17 +68,18 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           RUN_NUM: ${{ github.run_number }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RELEASES_URL: https://github.com/onjimin-arch/meeting-assistant/releases
         run: |
           PAYLOAD=$(jq -n \
             --arg run_num "$RUN_NUM" \
             --arg branch "$BRANCH" \
             --arg commit "${COMMIT_MSG:-PR/수동}" \
-            --arg url "$RUN_URL" \
+            --arg url "$RELEASES_URL" \
             '{text:(":white_check_mark: *Meeting Assistant 빌드 성공* (#"+$run_num+")"),
               attachments:[{color:"#36a64f",fields:[
                 {title:"브랜치",value:$branch,short:true},
                 {title:"커밋",value:$commit,short:false},
-                {title:"APK 다운로드",value:("<"+$url+"|Artifacts에서 다운로드>"),short:false}
+                {title:"APK 다운로드",value:("<"+$url+"|Releases에서 다운로드>"),short:false}
               ]}]}')
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' -d "$PAYLOAD"
