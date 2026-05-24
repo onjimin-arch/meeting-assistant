@@ -221,8 +221,17 @@ https://github.com/onjimin-arch/meeting-assistant/actions
 
 4. **변경 이유 기록**: DEPLOYMENT.md 릴리즈 이력에 버전 변경 사유 명시
 
+### Gradle JVM 메모리 (CI 고정값)
+
+```
+org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=256m
+```
+
+`android/gradle.properties`의 `-Xmx` 값은 **4g 이하**로 유지. GitHub Actions ubuntu-latest 러너는 RAM 7GB이므로 8G 이상 설정 시 JVM 시작 실패.
+
 ### 발생했던 문제 (재발 방지)
 
+- `-Xmx8G` 설정 → GitHub Actions 7GB 러너에서 JVM 시작 불가 → 빌드 즉시 실패
 - Kotlin `2.3.20` (미존재 버전) 설정 → 의존성 해석 실패로 빌드 오류
 - AGP `9.0.1` → Flutter Gradle 플러그인이 AGP 9.0 신규 DSL 미지원
 - 원인: 멀티 환경(회사PC / 집PC / Claude) 혼용으로 검증되지 않은 버전 혼입
