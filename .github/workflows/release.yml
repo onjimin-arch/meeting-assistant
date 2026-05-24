@@ -54,21 +54,21 @@ jobs:
       - name: flutter clean
         run: flutter clean && flutter pub get
 
-      - name: Build Release APK
-        id: build
-        run: |
-          set -o pipefail
-          flutter build apk --release 2>&1 | tee build_output.txt
-          ls build/app/outputs/flutter-apk/
+- name: Build Release APK
+  id: build
+  run: |
+    set -o pipefail
+    flutter build apk --release --split-per-abi 2>&1 | tee build_output.txt
+    ls build/app/outputs/flutter-apk/
 
-      - name: Create GitHub Release
-        if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: "Meeting Assistant ${{ steps.tag.outputs.tag }}"
-          fail_on_unmatched_files: true
-          files: build/app/outputs/flutter-apk/app-release.apk
+- name: Create GitHub Release
+  if: success()
+  uses: softprops/action-gh-release@v2
+  with:
+    tag_name: ${{ steps.tag.outputs.tag }}
+    name: "Meeting Assistant ${{ steps.tag.outputs.tag }}"
+    fail_on_unmatched_files: true
+    files: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           body: |
             ## Meeting Assistant ${{ steps.tag.outputs.tag }}
 
@@ -81,23 +81,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Slack — 릴리즈 성공
-        if: success()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          TAG: ${{ steps.tag.outputs.tag }}
-          REPO: ${{ github.repository }}
-        run: |
-          APK_URL="https://github.com/${REPO}/releases/download/${TAG}/app-release.apk"
-          PAYLOAD=$(jq -n \
-            --arg tag "$TAG" \
-            --arg url "$APK_URL" \
-            '{attachments:[{color:"#36a64f",blocks:[
-              {type:"section",text:{type:"mrkdwn",
-               text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*\n\n<"+$url+"|:inbox_tray:  APK 다운로드>")}}
-            ]}]}')
-          curl -s -X POST "$SLACK_WEBHOOK_URL" \
-            -H 'Content-type: application/json' -d "$PAYLOAD"
+- name: Slack — 릴리즈 성공
+  if: success()
+  env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    TAG: ${{ steps.tag.outputs.tag }}
+    REPO: ${{ github.repository }}
+  run: |
+    APK_URL="https://github.com/${REPO}/releases/download/${TAG}/app-arm64-v8a-release.apk"
+    PAYLOAD=$(jq -n \
+      --arg tag "$TAG" \
+      --arg url "$APK_URL" \
+      '{attachments:[{color:"#36a64f",blocks:[
+        {type:"section",text:{type:"mrkdwn",
+        text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!\*\n\n<"$url+"|:inbox_tray: APK 다운로드>")}}
+      ]}]}')
+    curl -s -X POST "$SLACK_WEBHOOK_URL" \
+      -H 'Content-type: application/json' -d "$PAYLOAD"
 
       - name: Upload error logs
         if: failure()
