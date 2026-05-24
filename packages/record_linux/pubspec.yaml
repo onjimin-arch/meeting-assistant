@@ -1,0 +1,11 @@
+name: record_linux
+version: 0.7.3
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  record_platform_interface: any
