@@ -100,15 +100,14 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           TAG: ${{ steps.tag.outputs.tag }}
-          REPO: ${{ github.repository }}
         run: |
-          RELEASES_URL="https://github.com/onjimin-arch/meeting-assistant/releases"
+          RELEASE_URL="https://github.com/onjimin-arch/meeting-assistant/releases/tag/$TAG"
           PAYLOAD=$(jq -n \
             --arg tag "$TAG" \
-            --arg url "$RELEASES_URL" \
+            --arg url "$RELEASE_URL" \
             '{attachments:[{color:"#36a64f",blocks:[
               {type:"section",text:{type:"mrkdwn",
-              text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*\n\n<"+$url+"|:inbox_tray: APK 다운로드>")}}
+              text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*\n\n<"+$url+"|:inbox_tray: APK 다운로드 ("+$tag+")>")}}
             ]}]}')
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' -d "$PAYLOAD"
