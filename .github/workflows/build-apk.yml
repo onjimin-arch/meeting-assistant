@@ -129,13 +129,13 @@ jobs:
         if: |
           failure() &&
           steps.build.outcome == 'failure' &&
-          secrets.ANTHROPIC_API_KEY != '' &&
+          secrets.OPENAI_API_KEY != '' &&
           !contains(github.event.head_commit.message, '[auto-fix]')
         id: autofix
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          pip install anthropic --quiet 2>/dev/null
+          pip install openai --quiet 2>/dev/null
           if python3 .github/scripts/claude_autofix.py; then
             echo "fixed=true" >> $GITHUB_OUTPUT
           else
@@ -184,7 +184,7 @@ jobs:
           failure() &&
           (contains(github.event.head_commit.message, '[auto-fix]') ||
            steps.autofix.outputs.fixed == 'false' ||
-           secrets.ANTHROPIC_API_KEY == '')
+           secrets.OPENAI_API_KEY == '')
         id: errlog
         run: |
           MSG=$(tail -40 error_tail.txt 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g' || echo "로그 없음")
@@ -195,7 +195,7 @@ jobs:
           failure() &&
           (contains(github.event.head_commit.message, '[auto-fix]') ||
            steps.autofix.outputs.fixed == 'false' ||
-           secrets.ANTHROPIC_API_KEY == '')
+           secrets.OPENAI_API_KEY == '')
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}

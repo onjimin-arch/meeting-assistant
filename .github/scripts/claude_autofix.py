@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """
-빌드 에러 자동 수정 스크립트.
-에러 로그 + android/ 설정 파일을 Claude API에 보내고,
+빌드 에러 자동 수정 스크립트 (OpenAI API).
+에러 로그 + android/ 설정 파일을 GPT-4o에 보내고,
 수정된 파일을 직접 덮어씁니다.
 """
-import anthropic
 import os
 import re
 import sys
+
+try:
+    from openai import OpenAI
+except ImportError:
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "openai", "--quiet"])
+    from openai import OpenAI
 
 ERROR_LOG_PATH = "error_tail.txt"
 ANDROID_FILES = [
@@ -60,35 +66,39 @@ def main() -> int:
 </FILE>
 """
 
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-    print("[auto-fix] Calling Claude API...")
-    response = client.messages.create(
-        model="claude-opus-4-7",
-        max_tokens=4096,
+    client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+    print("[auto-fix] Calling OpenAI API...")
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
+        max_tokens=4096,
+        temperature=0,
     )
 
-    text = response.content[0].text
-    print("[auto-fix] Claude response received.")
+    text = response.choices[0].message.content or ""
+    print("[auto-fix] OpenAI response received.")
 
     changes = re.findall(
         r'<FILE path="([^"]+)">\n?(.*?)\n?</FILE>', text, re.DOTALL
     )
 
     if not changes:
-        print("[auto-fix] Claude did not suggest any file changes.")
+        print("[auto-fix] No file changes suggested.")
         print("Response preview:", text[:600])
         return 1
 
+    applied = 0
     for path, content in changes:
         path = path.strip()
         if not path.startswith("android/"):
             print(f"[auto-fix] Skipping non-android path: {path}")
             continue
         write_file(path, content.strip() + "\n")
+        applied += 1
 
-    print(f"[auto-fix] Applied {len(changes)} file change(s).")
-    return 0
+    print(f"[auto-fix] Applied {applied} file change(s).")
+    return 0 if applied > 0 else 1
 
 
 if __name__ == "__main__":
