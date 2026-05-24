@@ -1,9 +1,15 @@
-﻿name: Release APK
+name: Release APK
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '릴리즈 태그 (예: v2.2.0)'
+        required: true
+        type: string
 
 jobs:
   release:
@@ -20,7 +26,12 @@ jobs:
 
       - name: Extract tag
         id: tag
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -44,7 +55,7 @@ jobs:
         run: |
           find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
             if grep -q 'compileSdk' "$f"; then
-              sed -i 's/compileSdk [0-9]*/compileSdk 36/' "$f"
+              sed -i 's/compileSdk [0-9]*/compileSdk 35/' "$f"
             fi
           done
 
@@ -55,7 +66,7 @@ jobs:
         run: |
           find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
             if grep -q 'compileSdk' "$f"; then
-              sed -i 's/compileSdk [0-9]*/compileSdk 36/' "$f"
+              sed -i 's/compileSdk [0-9]*/compileSdk 35/' "$f"
             fi
           done
 
@@ -63,7 +74,7 @@ jobs:
         id: build
         run: |
           set -o pipefail
-          flutter build apk --release --split-per-abi 2>&1 | tee build_output.txt
+          flutter build apk --release 2>&1 | tee build_output.txt
           ls build/app/outputs/flutter-apk/
 
       - name: Create GitHub Release
@@ -73,16 +84,16 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: "Meeting Assistant ${{ steps.tag.outputs.tag }}"
           fail_on_unmatched_files: true
-          files: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
           body: |
             ## Meeting Assistant ${{ steps.tag.outputs.tag }}
 
             ### 설치 방법
-            1. `app-arm64-v8a-release.apk` 다운로드
+            1. `app-release.apk` 다운로드
             2. 폰에 파일 전송 (구글드라이브, 카톡 등)
             3. "알 수 없는 출처 앱 허용" 후 설치
 
-            **최소 요구 사항**: Android 7.0 (API 24) 이상 / 64-bit ARM
+            **최소 요구 사항**: Android 7.0 (API 24) 이상
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -93,13 +104,13 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
-          APK_URL="https://github.com/${REPO}/releases/download/${TAG}/app-arm64-v8a-release.apk"
+          APK_URL="https://github.com/${REPO}/releases/download/${TAG}/app-release.apk"
           PAYLOAD=$(jq -n \
             --arg tag "$TAG" \
             --arg url "$APK_URL" \
             '{attachments:[{color:"#36a64f",blocks:[
               {type:"section",text:{type:"mrkdwn",
-               text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*\n\n<"+$url+"|:inbox_tray:  APK 다운로드  (arm64)>")}}
+               text:(":rocket: *Meeting Assistant "+$tag+" 릴리즈 완료!*\n\n<"+$url+"|:inbox_tray:  APK 다운로드>")}}
             ]}]}')
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' -d "$PAYLOAD"
@@ -116,7 +127,7 @@ jobs:
         if: failure()
         id: errlog
         run: |
-          MSG=$(tail -20 build_output.txt 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g' || echo "로그 없음")
+          MSG=$(tail -30 build_output.txt 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g' || echo "로그 없음")
           echo "msg=$MSG" >> $GITHUB_OUTPUT
 
       - name: Slack — 릴리즈 실패
@@ -126,16 +137,17 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
           ERR_MSG: ${{ steps.errlog.outputs.msg }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DISPATCH_URL: https://github.com/${{ github.repository }}/actions/workflows/release.yml
         run: |
           PAYLOAD=$(jq -n \
             --arg tag "$TAG" \
             --arg err "${ERR_MSG:-에러 로그 없음}" \
-            --arg url "$RUN_URL" \
-            '{text:(":x: *Meeting Assistant 릴리즈 빌드 실패* ("+$tag+")"),
-              attachments:[{color:"#e01e5a",fields:[
-                {title:"태그",value:$tag,short:true},
-                {title:"에러 요약",value:$err,short:false},
-                {title:"전체 로그",value:("<"+$url+"|GitHub Actions에서 보기>"),short:false}
-              ]}]}')
+            --arg run_url "$RUN_URL" \
+            --arg dispatch_url "$DISPATCH_URL" \
+            '{attachments:[{color:"#e01e5a",blocks:[
+              {type:"section",text:{type:"mrkdwn",
+               text:(":x: *Meeting Assistant "+$tag+" 릴리즈 실패*\n\n```"+$err+"```\n\n<"+$run_url+"|전체 로그 보기>  |  <"+$dispatch_url+"|수동 재실행 (workflow_dispatch)>")}
+              }
+            ]}]}')
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-type: application/json' -d "$PAYLOAD"
