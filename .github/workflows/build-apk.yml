@@ -1,4 +1,4 @@
-﻿name: Build Android APK
+name: Build Android APK
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
   build:
     name: Flutter Debug Build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     permissions:
       contents: read
@@ -32,11 +32,25 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Android SDK / NDK info
+        run: |
+          echo "=== Android SDK platforms ==="
+          ls "$ANDROID_HOME/platforms/" 2>/dev/null || echo "(none)"
+          echo "=== Android NDK ==="
+          ls "$ANDROID_HOME/ndk/" 2>/dev/null || echo "(none)"
+          echo "=== Flutter version ==="
+          flutter --version
+          echo "=== Dart version ==="
+          dart --version
+
+      - name: Accept Android licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses 2>/dev/null || true
+
       - name: Patch plugin compileSdk
         run: |
           find "$HOME/.pub-cache" -name "build.gradle" | while read f; do
             if grep -q 'compileSdk' "$f"; then
-              sed -i 's/compileSdk [0-9]*/compileSdk 36/' "$f"
+              sed -i 's/compileSdk [0-9]*/compileSdk 35/' "$f"
             fi
           done
 
@@ -90,7 +104,14 @@ jobs:
 
       - name: Capture error tail
         if: failure() && steps.build.outcome == 'failure'
-        run: tail -80 build_output.txt > error_tail.txt 2>/dev/null || echo "로그 없음" > error_tail.txt
+        run: tail -100 build_output.txt > error_tail.txt 2>/dev/null || echo "로그 없음" > error_tail.txt
+
+      - name: Print error tail to log
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          echo "===== BUILD ERROR TAIL ====="
+          cat error_tail.txt 2>/dev/null || echo "로그 없음"
+          echo "============================="
 
       - name: Upload error logs
         if: failure()
@@ -106,7 +127,7 @@ jobs:
         if: failure()
         id: errlog
         run: |
-          MSG=$(tail -20 error_tail.txt 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g' || echo "로그 없음")
+          MSG=$(tail -40 error_tail.txt 2>/dev/null | tr '\n' ' ' | sed 's/"/\\"/g' || echo "로그 없음")
           echo "msg=$MSG" >> $GITHUB_OUTPUT
 
       - name: Slack — 빌드 실패
